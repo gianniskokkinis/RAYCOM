@@ -164,19 +164,33 @@ int main(int argc, char* argv[])
     Ipv4InterfaceContainer wifiApInterfaces = address.Assign(apDevices);
 
     // UDP CONNECTION HERE
-    UdpEchoServerHelper echoServer(9);
-    ApplicationContainer serverApps = echoServer.Install(wifiApNode);
-    serverApps.Start(Seconds(1.0));
-    serverApps.Stop(Seconds(10.0));
+    // UdpEchoServerHelper echoServer(9);
 
-    UdpEchoClientHelper echoClient(wifiApInterfaces.GetAddress(0), 9);
-    echoClient.SetAttribute("MaxPackets", UintegerValue(10)); //2 packets 
-    echoClient.SetAttribute("Interval", TimeValue(Seconds(1.0))); //every 1 sec
-    echoClient.SetAttribute("PacketSize", UintegerValue(1024)); //1024 Bytes max size
+    // TCP CONNECTION HERE
+    Address TCPSinkAddress(InetSocketAddress(Ipv4Address::GetAny(),9)); //Create TCP connection and set on port 9 for TCP TRANSFER - Server 
+    PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", TCPSinkAddress);
+    ApplicationContainer serverApps = packetSinkHelper.Install(wifiApNode);
+    serverApps.Start(Seconds(1.0)); //start server 
+    serverApps.Stop(Seconds(10.0)); //stop server 
 
-    ApplicationContainer clientApps = echoClient.Install(wifiStaNodes);
-    clientApps.Start(Seconds(2.0));
-    clientApps.Stop(Seconds(10.0));
+    //UDP CLIENT
+    // UdpEchoClientHelper echoClient(wifiApInterfaces.GetAddress(0), 9);
+    // echoClient.SetAttribute("MaxPackets", UintegerValue(10)); //2 packets 
+    // echoClient.SetAttribute("Interval", TimeValue(Seconds(1.0))); //every 1 sec
+    // echoClient.SetAttribute("PacketSize", UintegerValue(1024)); //1024 Bytes max size
+
+    //TCP CLIENT
+    OnOffHelper TCPclient("ns3::TcpSocketFactory", Address(InetSocketAddress(wifiApInterfaces.GetAddress(0), 9))); //Create TCP connection and set on port 9 TCP TRANSFER - Client
+    TCPclient.SetAttribute("DataRate", StringValue("1Mbps")); //set the speed here 1 Mbps
+    TCPclient.SetAttribute("PacketSize", UintegerValue(1024)); //1024 Bytes max size packet
+    TCPclient.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]")); 
+    TCPclient.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]")); 
+    
+
+
+    ApplicationContainer clientApps = TCPclient.Install(wifiStaNodes);
+    clientApps.Start(Seconds(2.0)); //start cechoClientlient 
+    clientApps.Stop(Seconds(10.0)); //stop client
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
@@ -229,7 +243,7 @@ int main(int argc, char* argv[])
     }
 
     // Simulation
-    Simulator::Stop(Seconds(100.0));
+    Simulator::Stop(Seconds(1000.0));
 
     sionnaHelper.Start();
 
