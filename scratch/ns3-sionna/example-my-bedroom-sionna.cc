@@ -29,6 +29,8 @@
 
 using namespace ns3;
 
+//count the capacity of packets
+int packetCounter=0;
 
 NS_LOG_COMPONENT_DEFINE("myBedroomExample");
 
@@ -47,6 +49,18 @@ double get_channel_width(Ptr<NetDevice> nd)
     Ptr<WifiPhy> wp = nd->GetObject<WifiNetDevice>()->GetPhy();
     return wp->GetObject<YansWifiPhy>()->GetChannelWidth() * 1e6;
 }
+
+
+//create my functions here 
+
+/**This method called when a server receives a packet... */
+void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
+    //log info about receaived packet
+    uint32_t size = packet->GetSize(); //get the size of the packet to print
+    std::cout << "Receive ---- packet size: " << size << "Bytes" << std::endl;
+    packetCounter++;
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -173,6 +187,16 @@ int main(int argc, char* argv[])
     serverApps.Start(Seconds(1.0)); //start server 
     serverApps.Stop(Seconds(10.0)); //stop server 
 
+
+
+    /**
+     * 
+     * Creating here the sink to gather the packets Application Layer
+     */
+    Ptr<PacketSink> sink = serverApps.Get(0)->GetObject<PacketSink>();
+    sink->TraceConnectWithoutContext("Rx", MakeCallback(&OnReceivePacket)); //connect with our function
+
+
     //UDP CLIENT
     // UdpEchoClientHelper echoClient(wifiApInterfaces.GetAddress(0), 9);
     // echoClient.SetAttribute("MaxPackets", UintegerValue(10)); //2 packets 
@@ -249,6 +273,11 @@ int main(int argc, char* argv[])
 
     Simulator::Run();
     Simulator::Destroy();
+
+    //print the packets here 
+    uint64_t totalBytesReceived = sink->GetTotalRx();
+    std::cout << "Total Packets Received: " << packetCounter << std::endl;
+    std::cout << "Total Bytes Received: " << totalBytesReceived << std::endl;
 
     std::cout << "Ns3-sionna: cache hit ratio: " <<  propagationCache->GetStats() << std::endl;
 
