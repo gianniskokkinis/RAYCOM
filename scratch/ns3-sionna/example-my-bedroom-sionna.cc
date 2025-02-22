@@ -27,6 +27,12 @@
 #include "ns3/yans-wifi-helper.h"
 #include "ns3/wifi-net-device.h"
 
+//my include here 
+#include "ns3/flow-monitor-module.h"
+#include "ns3/wifi-phy.h"
+#include "ns3/spectrum-analyzer.h"
+#include "ns3/spectrum-value.h"
+
 using namespace ns3;
 
 //count the capacity of packets
@@ -57,7 +63,7 @@ double get_channel_width(Ptr<NetDevice> nd)
 void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
     //log info about receaived packet
     uint32_t size = packet->GetSize(); //get the size of the packet to print
-    std::cout << "Receive ---- packet size: " << size << "Bytes" << std::endl;
+    std::cout << "\n----\n Receive ---- packet size: " << size << "Bytes\n----\n" << std::endl;
     packetCounter++;
 }
 
@@ -130,6 +136,11 @@ int main(int argc, char* argv[])
     // WiFi configuration create wifi channel using other library
     YansWifiPhyHelper phy; //the name phy is from physical level
     phy.SetChannel(channel);
+
+    
+
+    
+
     
 
     
@@ -180,7 +191,7 @@ int main(int argc, char* argv[])
     // UDP CONNECTION HERE
     // UdpEchoServerHelper echoServer(9);
 
-    // TCP CONNECTION HERE
+    // TCP SERVER
     Address TCPSinkAddress(InetSocketAddress(Ipv4Address::GetAny(),9)); //Create TCP connection and set on port 9 for TCP TRANSFER - Server 
     PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", TCPSinkAddress);
     ApplicationContainer serverApps = packetSinkHelper.Install(wifiApNode);
@@ -266,18 +277,31 @@ int main(int argc, char* argv[])
         }
     }
 
-    // Simulation
+    //create here monitor 
+    FlowMonitorHelper flow;
+    Ptr<FlowMonitor> monitor = flow.InstallAll();
+
+
+
     Simulator::Stop(Seconds(1000.0));
 
     sionnaHelper.Start();
 
     Simulator::Run();
+    
+    //collecting informations about physical layer 
+    Ptr<WifiPhy> phyInfo = apDevices.Get(0)->GetObject<WifiNetDevice>()->GetPhy();
+    //need to take here the info about devices 
+
+    //export stats to results
+    monitor->SerializeToXmlFile("results.xml", true, true);
+
     Simulator::Destroy();
 
     //print the packets here 
     uint64_t totalBytesReceived = sink->GetTotalRx();
-    std::cout << "Total Packets Received: " << packetCounter << std::endl;
-    std::cout << "Total Bytes Received: " << totalBytesReceived << std::endl;
+    std::cout << "Total Received: " << packetCounter << " packets" << std::endl;
+    std::cout << "Total Received: " << totalBytesReceived << " Bytes" << std::endl;
 
     std::cout << "Ns3-sionna: cache hit ratio: " <<  propagationCache->GetStats() << std::endl;
 
