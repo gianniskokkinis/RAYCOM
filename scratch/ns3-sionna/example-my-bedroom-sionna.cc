@@ -57,6 +57,15 @@ double get_channel_width(Ptr<NetDevice> nd)
 }
 
 
+void print_channel_info(double signal_power, Time last_rx_start_time, Time last_rx_end_time)
+{
+    std::cout <<"---------- CHANNEL INFO -------\n" << std::endl;
+    std::cout << "Signal power: " << signal_power << " dBm" << std::endl;
+    std::cout << "Last RX start time: " << last_rx_start_time.GetSeconds() << " s" << std::endl;
+    std::cout << "Last RX end time: " << last_rx_end_time.GetSeconds() << " s" << std::endl;
+    std::cout <<"-------------------------------\n" << std::endl;
+}
+
 //create my functions here 
 
 /**This method called when a server receives a packet... */
@@ -67,6 +76,39 @@ void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
     packetCounter++;
 }
 
+//this methods will implement later 
+/**
+ * 
+ * This method here will check the collision inside the channel
+ * 
+ */
+void checkChannelCollision(Ptr<WifiPhy> phyInfo){
+
+    if (phyInfo->IsStateCcaBusy() && phyInfo->IsStateTx()){
+        std::cout << "Collision Detected! " << std::endl;
+    }else{
+        if (phyInfo->IsStateCcaBusy()){
+            std::cout << "Channel is busy" << std::endl;
+        }else{
+            if (phyInfo->IsStateTx()){
+                std::cout << "Someone is sending a packet" << std::endl;
+            }else{
+                std::cout << "Channel is Free" << std::endl;
+            }
+        }
+    }
+
+    //to run always
+    Simulator::Schedule(Seconds(1.0), &checkChannelCollision, phyInfo);
+}
+
+/**
+ *  This method here is about check errors inside the channel
+ *
+ */
+void checkChannelErros(){
+
+}
 
 int main(int argc, char* argv[])
 {
@@ -132,12 +174,15 @@ int main(int argc, char* argv[])
     //set the loss and delay model to channel
     channel->SetPropagationLossModel(lossModel);
     channel->SetPropagationDelayModel(delayModel);
+    
+    
 
     // WiFi configuration create wifi channel using other library
     YansWifiPhyHelper phy; //the name phy is from physical level
     phy.SetChannel(channel);
 
-    
+   
+
 
     
 
@@ -166,6 +211,25 @@ int main(int argc, char* argv[])
     NetDeviceContainer apDevices;
     mac.SetType("ns3::ApWifiMac", "Ssid", SsidValue(ssid), "BeaconGeneration", BooleanValue(true), "BeaconInterval", TimeValue(Seconds(5.120)), "EnableBeaconJitter", BooleanValue(false));
     apDevices = wifi.Install(phy, mac, wifiApNode);
+    
+    
+    std::cout << "---- \n --  AP MTU: " << apDevices.Get(0)->GetMtu() << "\n-----\n" << std::endl;
+    std::cout << "---- \n --  STA MTU: " << staDevices.Get(0)->GetMtu() << "\n-----\n" << std::endl;
+
+
+    //collecting informations about physical layer 
+    Ptr<WifiPhy> phyInfo = apDevices.Get(0)->GetObject<WifiNetDevice>()->GetPhy();
+    //get informations here 
+    double signal_power = phyInfo->GetPowerDbm(0);
+    Time last_rx_start_time = phyInfo->GetLastRxStartTime();
+    Time last_rx_end_time = phyInfo->GetLastRxEndTime();
+    
+    //print informations
+    print_channel_info(signal_power,last_rx_start_time, last_rx_end_time);
+
+
+    
+
 
     // Mobility configuration
     MobilityHelper mobility;
@@ -287,11 +351,12 @@ int main(int argc, char* argv[])
 
     sionnaHelper.Start();
 
+    //schedule the collision detector 
+    Simulator::Schedule(Seconds(1.0), &checkChannelCollision, phyInfo);
+
     Simulator::Run();
+
     
-    //collecting informations about physical layer 
-    Ptr<WifiPhy> phyInfo = apDevices.Get(0)->GetObject<WifiNetDevice>()->GetPhy();
-    //need to take here the info about devices 
 
     //export stats to results
     monitor->SerializeToXmlFile("results.xml", true, true);
