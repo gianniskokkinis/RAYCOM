@@ -4,7 +4,7 @@
  *  
  * simple example to understand 
  * 
- *  We have a room with 1 access point, 1 laptop and 2 smartphones
+ *  We have a bedroom with 1 access point and 1 smartphone
  */
 
 
@@ -63,14 +63,18 @@ void print_channel_info(double signal_power, Time last_rx_start_time, Time last_
     std::cout << "Signal power: " << signal_power << " dBm" << std::endl;
     std::cout << "Last RX start time: " << last_rx_start_time.GetSeconds() << " s" << std::endl;
     std::cout << "Last RX end time: " << last_rx_end_time.GetSeconds() << " s" << std::endl;
+    std::cout << "Duration : " << (last_rx_end_time.GetSeconds() - last_rx_start_time.GetSeconds()) << " s" << std::endl;
     std::cout <<"-------------------------------\n" << std::endl;
+    //to run always
+    Simulator::Schedule(Seconds(2.0), &print_channel_info, signal_power, last_rx_start_time, last_rx_end_time);
+
 }
 
 //create my functions here 
 
 /**This method called when a server receives a packet... */
 void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
-    //log info about receaived packet
+    //log info about received packet
     uint32_t size = packet->GetSize(); //get the size of the packet to print
     std::cout << "\n----\n Receive ---- packet size: " << size << "Bytes\n----\n" << std::endl;
     packetCounter++;
@@ -135,6 +139,7 @@ int main(int argc, char* argv[])
         LogComponentEnable("YansWifiChannel", LOG_PREFIX_TIME);
         LogComponentEnable("SionnaPropagationDelayModel", LOG_INFO);
         LogComponentEnable("SionnaPropagationCache", LOG_INFO);
+        LogComponentEnable("WifiPhy", LOG_LEVEL_DEBUG);
     }
 
     std::cout << "Example scenario with sionna" << std::endl << std::endl;
@@ -224,8 +229,7 @@ int main(int argc, char* argv[])
     Time last_rx_start_time = phyInfo->GetLastRxStartTime();
     Time last_rx_end_time = phyInfo->GetLastRxEndTime();
     
-    //print informations
-    print_channel_info(signal_power,last_rx_start_time, last_rx_end_time);
+    
 
 
     
@@ -353,6 +357,9 @@ int main(int argc, char* argv[])
 
     //schedule the collision detector 
     Simulator::Schedule(Seconds(1.0), &checkChannelCollision, phyInfo);
+    
+    // print channel state info
+    Simulator::Schedule(Seconds(2.0), &print_channel_info, signal_power, last_rx_start_time, last_rx_end_time);
 
     Simulator::Run();
 
@@ -362,6 +369,8 @@ int main(int argc, char* argv[])
     monitor->SerializeToXmlFile("results.xml", true, true);
 
     Simulator::Destroy();
+
+    
 
     //print the packets here 
     uint64_t totalBytesReceived = sink->GetTotalRx();
