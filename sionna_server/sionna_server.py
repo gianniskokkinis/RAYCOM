@@ -83,6 +83,8 @@ class SionnaEnv:
         filepath = "./../models/" + simulation_info.scene_fname
         self.scene = load_scene(filepath)
         self.mode = simulation_info.mode
+        
+        
 
 
         if simulation_info.sub_mode > -1:
@@ -210,12 +212,14 @@ class SionnaEnv:
         # how long to store computed position values from mobility
         self.max_pos_cache_age = max(1e9,  num_nodes * math.ceil(self.sub_mode / num_nodes) * self.chan_coh_time_mode23)
 
+        
+
         if self.VERBOSE:
             print_simulation_info(simulation_info)
 
 
     def calculate_channel_state(self, channel_state_request, reply_wrapper):
-        #print("CALL: ----------> calculate_channel_state()")#test
+        
         tx_node = channel_state_request.tx_node 
         mand_rx_node = channel_state_request.rx_node # this rx node must be included in result set
         simulation_time = channel_state_request.time
@@ -381,7 +385,15 @@ class SionnaEnv:
         # ZMQ response
         chan_response = reply_wrapper.channel_state_response
 
+        #test 
+        # here something cooking ...
+        
+        print("---> SEND RESPONSE : ")
+        #end test
+
         for future_id in range(look_ahead):
+
+            
             future_simulation_time = int(simulation_time + future_id * self.chan_coh_time_mode23)
             # add new CSI
             csi = chan_response.csi.add()
@@ -447,6 +459,11 @@ class SionnaEnv:
                 if self.est_csi:
                     rx_node_info.csi_imag.extend(list(np.imag(lnk_csi)))
                     rx_node_info.csi_real.extend(list(np.real(lnk_csi)))
+
+                #calculate BER here 
+                berCalculator = sionna.utils.BitErrorRate()
+                #need to implement code here 
+                print(f"BER {tx_node} -> {rx_node} : {berCalculator(snr)}")
 
         #if self.VERBOSE:
         last_sim = simulation_time + (look_ahead - 1) * self.chan_coh_time_mode23
@@ -632,6 +649,10 @@ class SionnaEnv:
             self.walk(node_id, simulation_time - self.node_info_dict[node_id]["last update"])
             return self.node_info_dict[node_id]["position"], self.node_info_dict[node_id]["velocity"]
 
+    #my functions here 
+    def calculateBER():
+        return 1
+    
 
     def run(self):
         """
@@ -658,8 +679,13 @@ class SionnaEnv:
             from_ns3_wrapper = message_pb2.Wrapper()
             from_ns3_wrapper.ParseFromString(from_ns3_message)
             # Prepare the reply message
-            # This here contains important info about location of nodes, frequenct rtc
+            # This here contains important info about location of nodes, frequenct etc
             to_ns3_wrapper = message_pb2.Wrapper()
+
+            #test
+            # print("\nReceived message: ", from_ns3_wrapper)
+            # print("\n")
+            #end test
 
             # Fill the reply message
             if from_ns3_wrapper.HasField("sim_init_msg"):
@@ -670,7 +696,7 @@ class SionnaEnv:
                 print("Sionna server socket connected ...")
 
             elif from_ns3_wrapper.HasField("channel_state_request"):
-                #print('INSIDE IF : from_ns3_wrapper.HasField("channel_state_request")')
+                
                 # handle ChannelStateRequest by sending ChannelStateResponse
                 start_time = time.time() #start timer here
                 self.calculate_channel_state(from_ns3_wrapper.channel_state_request, to_ns3_wrapper)

@@ -32,6 +32,7 @@
 #include "ns3/wifi-phy.h"
 #include "ns3/spectrum-analyzer.h"
 #include "ns3/spectrum-value.h"
+#include <cmath>
 
 using namespace ns3;
 
@@ -57,6 +58,15 @@ double get_channel_width(Ptr<NetDevice> nd)
 }
 
 
+//create my functions here 
+
+
+
+/**
+ * 
+ *  need to send data to sionna_server.py
+ * 
+ */
 void print_channel_info(double signal_power, Time last_rx_start_time, Time last_rx_end_time)
 {
     std::cout <<"---------- CHANNEL INFO -------\n" << std::endl;
@@ -70,7 +80,7 @@ void print_channel_info(double signal_power, Time last_rx_start_time, Time last_
 
 }
 
-//create my functions here 
+
 
 /**This method called when a server receives a packet... */
 void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
@@ -80,31 +90,32 @@ void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
     packetCounter++;
 }
 
+
 //this methods will implement later 
 /**
  * 
  * This method here will check the collision inside the channel
  * 
  */
-void checkChannelCollision(Ptr<WifiPhy> phyInfo){
+// void checkChannelCollision(Ptr<WifiPhy> phyInfo){
 
-    if (phyInfo->IsStateCcaBusy() && phyInfo->IsStateTx()){
-        std::cout << "Collision Detected! " << std::endl;
-    }else{
-        if (phyInfo->IsStateCcaBusy()){
-            std::cout << "Channel is busy" << std::endl;
-        }else{
-            if (phyInfo->IsStateTx()){
-                std::cout << "Someone is sending a packet" << std::endl;
-            }else{
-                std::cout << "Channel is Free" << std::endl;
-            }
-        }
-    }
+//     if (phyInfo->IsStateCcaBusy() && phyInfo->IsStateTx()){
+//         std::cout << "Collision Detected! " << std::endl;
+//     }else{
+//         if (phyInfo->IsStateCcaBusy()){
+//             std::cout << "Channel is busy" << std::endl;
+//         }else{
+//             if (phyInfo->IsStateTx()){
+//                 std::cout << "Someone is sending a packet" << std::endl;
+//             }else{
+//                 std::cout << "Channel is Free" << std::endl;
+//             }
+//         }
+//     }
 
-    //to run always
-    Simulator::Schedule(Seconds(1.0), &checkChannelCollision, phyInfo);
-}
+//     //to run always
+//     Simulator::Schedule(Seconds(1.0), &checkChannelCollision, phyInfo);
+// }
 
 /**
  *  This method here is about check errors inside the channel
@@ -139,7 +150,7 @@ int main(int argc, char* argv[])
         LogComponentEnable("YansWifiChannel", LOG_PREFIX_TIME);
         LogComponentEnable("SionnaPropagationDelayModel", LOG_INFO);
         LogComponentEnable("SionnaPropagationCache", LOG_INFO);
-        LogComponentEnable("WifiPhy", LOG_LEVEL_DEBUG);
+        // LogComponentEnable("WifiPhy", LOG_LEVEL_DEBUG);
     }
 
     std::cout << "Example scenario with sionna" << std::endl << std::endl;
@@ -355,9 +366,7 @@ int main(int argc, char* argv[])
 
     sionnaHelper.Start();
 
-    //schedule the collision detector 
-    Simulator::Schedule(Seconds(1.0), &checkChannelCollision, phyInfo);
-    
+
     // print channel state info
     Simulator::Schedule(Seconds(2.0), &print_channel_info, signal_power, last_rx_start_time, last_rx_end_time);
 
@@ -366,7 +375,7 @@ int main(int argc, char* argv[])
     
 
     //export stats to results
-    monitor->SerializeToXmlFile("results.xml", true, true);
+    //monitor->SerializeToXmlFile("results.xml", true, true);
 
     Simulator::Destroy();
 
