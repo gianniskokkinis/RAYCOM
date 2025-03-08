@@ -69,6 +69,8 @@ class SionnaEnv:
         self.node_info_dict = {}
         self.last_placed_nodes = [] # name of TX/RX placed during last channel computation
         self.pos_velo_cache = dict()
+        #counter for packets here
+        self.packet_counter = 0
 
 
     def store_simulation_info(self, simulation_info):
@@ -121,6 +123,11 @@ class SionnaEnv:
                                      pattern=iso_pattern)
 
         # Set scene parameters
+        #test
+        print("Frequency: ", simulation_info.frequency)
+        print("BandWith: ", simulation_info.channel_bw)
+        print("FFT SIZE: ", simulation_info.fft_size)
+        #end test
         self.scene.frequency = simulation_info.frequency
         self.scene.channel_bw = simulation_info.channel_bw
         self.scene.fft_size = simulation_info.fft_size
@@ -220,6 +227,14 @@ class SionnaEnv:
 
     def calculate_channel_state(self, channel_state_request, reply_wrapper):
         
+
+        #print stats
+        print(" TX Node: ", channel_state_request.tx_node)
+        print(" RX Node: ", channel_state_request.rx_node)
+        print(f" Simulation Time:  {channel_state_request.time} ns")
+    
+
+
         tx_node = channel_state_request.tx_node 
         mand_rx_node = channel_state_request.rx_node # this rx node must be included in result set
         simulation_time = channel_state_request.time
@@ -382,13 +397,23 @@ class SionnaEnv:
                                      tau=tau,
                                      normalize=False)
 
+        #test
+        #convert to binary 
+        threshold = 0.5
+        h_freq_magnitude = np.abs(h_freq.numpy())
+        binary_tensor = (h_freq_magnitude > threshold).astype(np.uint8)
+        print("Binary shape: ", binary_tensor.shape)
+        print("Binary dtype: ", binary_tensor.dtype)
+        print("Binary Tensor: ", binary_tensor)
+        #end test
+
         # ZMQ response
         chan_response = reply_wrapper.channel_state_response
 
         #test 
         # here something cooking ...
         
-        print("---> SEND RESPONSE : ")
+        print("---> SEND RESPONSE")
         #end test
 
         for future_id in range(look_ahead):
@@ -461,9 +486,9 @@ class SionnaEnv:
                     rx_node_info.csi_real.extend(list(np.real(lnk_csi)))
 
                 #calculate BER here 
-                berCalculator = sionna.utils.BitErrorRate()
+                # berCalculator = sionna.utils.BitErrorRate()
                 #need to implement code here 
-                print(f"BER {tx_node} -> {rx_node} : {berCalculator(snr)}")
+                # print(f"BER {tx_node} -> {rx_node} : {berCalculator(snr)}")
 
         #if self.VERBOSE:
         last_sim = simulation_time + (look_ahead - 1) * self.chan_coh_time_mode23

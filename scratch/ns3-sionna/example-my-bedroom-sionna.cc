@@ -86,7 +86,20 @@ void print_channel_info(double signal_power, Time last_rx_start_time, Time last_
 void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
     //log info about received packet
     uint32_t size = packet->GetSize(); //get the size of the packet to print
-    std::cout << "\n----\n Receive ---- packet size: " << size << "Bytes\n----\n" << std::endl;
+    uint8_t* buffer = new uint8_t[size];
+    uint32_t data = packet->CopyData(buffer, size);
+
+    std::cout << "\n----\n " << std::endl;
+    std::cout << "Receive ---- packet size: " << size << "Bytes\n" << std::endl;
+    std::cout << "Receive ---- packet data: " << data << std::endl;
+    std::cout << "\n----\n" << std::endl;
+
+    //test
+    for (uint32_t i=0; i<size; i++){
+        std::cout << "Buffer[i]: " << static_cast<int>(buffer[i])  << std::endl;
+    }
+    //end test
+
     packetCounter++;
 }
 
