@@ -32,7 +32,12 @@
 #include "ns3/wifi-phy.h"
 #include "ns3/spectrum-analyzer.h"
 #include "ns3/spectrum-value.h"
+
+//These includes is only for debugging 
 #include <cmath>
+#include <unistd.h>
+#include "ns3/random-variable-stream.h"
+
 
 using namespace ns3;
 
@@ -86,7 +91,7 @@ void print_channel_info(double signal_power, Time last_rx_start_time, Time last_
 void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
     //log info about received packet
     uint32_t size = packet->GetSize(); //get the size of the packet to print
-    uint8_t* buffer = new uint8_t[size];
+    uint8_t* buffer = new uint8_t[size]; // size count by Bytes
     uint32_t data = packet->CopyData(buffer, size);
 
     std::cout << "\n----\n " << std::endl;
@@ -98,9 +103,37 @@ void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
     for (uint32_t i=0; i<size; i++){
         std::cout << "Buffer[i]: " << static_cast<int>(buffer[i])  << std::endl;
     }
+    sleep(5); 
     //end test
 
+    
+
     packetCounter++;
+}
+
+
+Ptr<Packet> modifyPackets(Ptr<const Packet> packet){
+    uint32_t size = packet->GetSize(); 
+    uint8_t* buffer = new uint8_t[size];
+    packet->CopyData(buffer,size); //copy the data
+
+    //generate random bits 
+    Ptr<UniformRandomVariable> randomVar = CreateObject<UniformRandomVariable>();
+    randomVar->SetAttribute("Min", DoubleValue(0.0));
+    randomVar->SetAttribute("Max", DoubleValue(1.0));
+
+    for(uint32_t i=0; i<size; i++){
+        for(int j=7; j>=0; j--){
+            bool bit = randomVar->GetInteger();
+            buffer[i] = (bit<<j); // [0 or 1 << j seats] 
+        }
+    }
+    
+    //create new packet 
+    Ptr<Packet> updatePackate = Create<Packet>(buffer, size);
+    
+    delete[] buffer;
+
 }
 
 
@@ -310,13 +343,14 @@ int main(int argc, char* argv[])
     OnOffHelper TCPclient("ns3::TcpSocketFactory", Address(InetSocketAddress(wifiApInterfaces.GetAddress(0), 9))); //Create TCP connection and set on port 9 TCP TRANSFER - Client
     TCPclient.SetAttribute("DataRate", StringValue("1Mbps")); //set the speed here 1 Mbps
     TCPclient.SetAttribute("PacketSize", UintegerValue(1024)); //1024 Bytes max size packet
+    TCPclient.SetFill(0x01, 1024);
     TCPclient.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]")); 
     TCPclient.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]")); 
     
 
 
     ApplicationContainer clientApps = TCPclient.Install(wifiStaNodes);
-    clientApps.Start(Seconds(2.0)); //start cechoClientlient 
+    clientApps.Start(Seconds(2.0)); //start echoClientlient 
     clientApps.Stop(Seconds(10.0)); //stop client
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables();
@@ -344,6 +378,14 @@ int main(int argc, char* argv[])
             Ptr<MobilityModel> mobilityModel = (*iter)->GetObject<MobilityModel>();
             if (mobilityModel)
             {
+                // Tracing
+                if (tracing)
+                {
+                    phy.SetPcapDataLinkType(WifiPhyHelper::DLT_IEEE802_11_RADIO);
+                    phy.EnablePcap("example-sionna", apDevices.Get(0));
+                    phy.EnablePcap("example-sionna", staDevices.Get(0));
+                }
+            
                 std::cout << mobilityModel->GetInstanceTypeId().GetName() << " (";
                 Vector position = mobilityModel->GetPosition();
                 Vector velocity = mobilityModel->GetVelocity();
