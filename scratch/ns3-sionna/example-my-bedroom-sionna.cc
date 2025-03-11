@@ -100,68 +100,21 @@ void OnReceivePacket(Ptr<const Packet> packet, const Address &address){
     std::cout << "\n----\n" << std::endl;
 
     //test
+    std::cout << "Buffer { ";
     for (uint32_t i=0; i<size; i++){
-        std::cout << "Buffer[i]: " << static_cast<int>(buffer[i])  << std::endl;
+        std::cout << static_cast<int>(buffer[i])  << " , ";
     }
-    sleep(5); 
+    std::cout << "}\n" << std::endl;
     //end test
 
-    
+    sleep(2);
 
     packetCounter++;
 }
 
 
-Ptr<Packet> modifyPackets(Ptr<const Packet> packet){
-    uint32_t size = packet->GetSize(); 
-    uint8_t* buffer = new uint8_t[size];
-    packet->CopyData(buffer,size); //copy the data
-
-    //generate random bits 
-    Ptr<UniformRandomVariable> randomVar = CreateObject<UniformRandomVariable>();
-    randomVar->SetAttribute("Min", DoubleValue(0.0));
-    randomVar->SetAttribute("Max", DoubleValue(1.0));
-
-    for(uint32_t i=0; i<size; i++){
-        for(int j=7; j>=0; j--){
-            bool bit = randomVar->GetInteger();
-            buffer[i] = (bit<<j); // [0 or 1 << j seats] 
-        }
-    }
-    
-    //create new packet 
-    Ptr<Packet> updatePackate = Create<Packet>(buffer, size);
-    
-    delete[] buffer;
-
-}
 
 
-//this methods will implement later 
-/**
- * 
- * This method here will check the collision inside the channel
- * 
- */
-// void checkChannelCollision(Ptr<WifiPhy> phyInfo){
-
-//     if (phyInfo->IsStateCcaBusy() && phyInfo->IsStateTx()){
-//         std::cout << "Collision Detected! " << std::endl;
-//     }else{
-//         if (phyInfo->IsStateCcaBusy()){
-//             std::cout << "Channel is busy" << std::endl;
-//         }else{
-//             if (phyInfo->IsStateTx()){
-//                 std::cout << "Someone is sending a packet" << std::endl;
-//             }else{
-//                 std::cout << "Channel is Free" << std::endl;
-//             }
-//         }
-//     }
-
-//     //to run always
-//     Simulator::Schedule(Seconds(1.0), &checkChannelCollision, phyInfo);
-// }
 
 /**
  *  This method here is about check errors inside the channel
@@ -240,7 +193,7 @@ int main(int argc, char* argv[])
     
 
     // WiFi configuration create wifi channel using other library
-    YansWifiPhyHelper phy; //the name phy is from physical level
+    YansWifiPhyHelper phy; 
     phy.SetChannel(channel);
 
    
@@ -274,7 +227,7 @@ int main(int argc, char* argv[])
     mac.SetType("ns3::ApWifiMac", "Ssid", SsidValue(ssid), "BeaconGeneration", BooleanValue(true), "BeaconInterval", TimeValue(Seconds(5.120)), "EnableBeaconJitter", BooleanValue(false));
     apDevices = wifi.Install(phy, mac, wifiApNode);
     
-    
+    //Debug MTU of AP and STA
     std::cout << "---- \n --  AP MTU: " << apDevices.Get(0)->GetMtu() << "\n-----\n" << std::endl;
     std::cout << "---- \n --  STA MTU: " << staDevices.Get(0)->GetMtu() << "\n-----\n" << std::endl;
 
@@ -333,23 +286,33 @@ int main(int argc, char* argv[])
     sink->TraceConnectWithoutContext("Rx", MakeCallback(&OnReceivePacket)); //connect with our function
 
 
-    //UDP CLIENT
-    // UdpEchoClientHelper echoClient(wifiApInterfaces.GetAddress(0), 9);
-    // echoClient.SetAttribute("MaxPackets", UintegerValue(10)); //2 packets 
-    // echoClient.SetAttribute("Interval", TimeValue(Seconds(1.0))); //every 1 sec
-    // echoClient.SetAttribute("PacketSize", UintegerValue(1024)); //1024 Bytes max size
 
     //TCP CLIENT
     OnOffHelper TCPclient("ns3::TcpSocketFactory", Address(InetSocketAddress(wifiApInterfaces.GetAddress(0), 9))); //Create TCP connection and set on port 9 TCP TRANSFER - Client
     TCPclient.SetAttribute("DataRate", StringValue("1Mbps")); //set the speed here 1 Mbps
     TCPclient.SetAttribute("PacketSize", UintegerValue(1024)); //1024 Bytes max size packet
-    TCPclient.SetFill(0x01, 1024);
     TCPclient.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]")); 
     TCPclient.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]")); 
     
 
 
     ApplicationContainer clientApps = TCPclient.Install(wifiStaNodes);
+
+    Ptr<OnOffApplication> onOffApp = clientApps.Get(0)->GetObject<OnOffApplication>();
+    if (onOffApp){
+
+        //here we are creating custom payload 
+        uint8_t updatePayload[4] = {0b001100000, 0x00, 0x00, 0x00};
+
+        //and send the packet 
+        Ptr<Packet> packet = Create<Packet>(updatePayload, sizeof(updatePayload));
+
+        
+        
+    }
+    
+
+
     clientApps.Start(Seconds(2.0)); //start echoClientlient 
     clientApps.Stop(Seconds(10.0)); //stop client
 

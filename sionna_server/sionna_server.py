@@ -391,21 +391,20 @@ class SionnaEnv:
         frequencies = subcarrier_frequencies(num_subcarriers=fft_size,
                                              subcarrier_spacing=subcarrier_spacing)
 
+        #test
+        print("frequencies: ", frequencies)
+        #end test
+        
         # Compute the frequency response of the channel at frequencies
         h_freq = cir_to_ofdm_channel(frequencies=frequencies,
                                      a=a,
                                      tau=tau,
                                      normalize=False)
-
-        #test
-        #convert to binary 
-        threshold = 0.5
-        h_freq_magnitude = np.abs(h_freq.numpy())
-        binary_tensor = (h_freq_magnitude > threshold).astype(np.uint8)
-        print("Binary shape: ", binary_tensor.shape)
-        print("Binary dtype: ", binary_tensor.dtype)
-        print("Binary Tensor: ", binary_tensor)
-        #end test
+        
+        
+        
+        
+          
 
         # ZMQ response
         chan_response = reply_wrapper.channel_state_response
