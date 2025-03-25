@@ -47,7 +47,7 @@ import matplotlib.pyplot as plt
 
 class SionnaEnv:
 
-    def __init__(self, updateScene, rt_calc_diffraction, rt_max_depth=5, rt_max_parallel_links=32, est_csi=True, VERBOSE=True):
+    def __init__(self, updateScene, updateFrequency, updateBandwith, updateFft_size, update_fft_size ,rt_calc_diffraction, rt_max_depth=5, rt_max_parallel_links=32, est_csi=True, VERBOSE=True):
         self.rt_calc_diffraction = rt_calc_diffraction
         self.rt_max_depth = rt_max_depth
         self.rt_max_parallel_links = rt_max_parallel_links
@@ -59,15 +59,148 @@ class SionnaEnv:
         #counter for packets here
         self.packet_counter = 0
         self.scene = updateScene
+        self.frequency = updateFrequency
+        self.channel_bw = updateBandwith
+        self.fft_size = updateFft_size
+        # Set scene parameters
+        self.scene.frequency = updateFrequency
+        self.scene.channel_bw = updateBandwith
+        self.scene.fft_size = updateFft_size
+        
+
+    def store_simulation_info(self):
+
+        # SISO mode only
+        # Configure antenna array for all transmitters
+        self.scene.tx_array = PlanarArray(num_rows=1,
+                                     num_cols=1,
+                                     vertical_spacing=0.5,
+                                     horizontal_spacing=0.5,
+                                     pattern=iso_pattern)    
+
+            
+        # Configure antenna array for all receivers
+        self.scene.rx_array = PlanarArray(num_rows=1,
+                                     num_cols=1,
+                                     vertical_spacing=0.5,
+                                     horizontal_spacing=0.5,
+                                     pattern=iso_pattern)
+
+        
+                
+        # If set to False, ray tracing will be done per antenna element (slower for large arrays)
+        self.scene.synthetic_array = True
+                
+
     
     
-    def add_transmitter_to_scene(self, updatePosition):
-        tx = Transmitter(name="Laptop", position=updatePosition)
-        self.scene.add(tx)
     
-    def add_receiver_to_scene(self, updatePosition):
-        rx = Receiver(name="Router", position=updatePosition)
-        self.scene.add(rx)
+    def create_communication_link(self, tx_name, tx_position, rx_name , rx_position):
+        #This method is about creating link between transmitter and receiver 
+        self.tx = Transmitter(name=tx_name, position=tx_position)
+        self.rx = Receiver(name=rx_name, position=rx_position)
+
+        self.scene.add(self.tx)
+        self.scene.add(self.rx)
+
+
+    def calculate_channel_state(self):
+        
+        # WiFi parameters
+        subcarrier_spacing = (self.channel_bw / self.fft_size)  # 312.5e3
+        fft_size = self.fft_size  # 64
+
+        a, tau = 0, 0
+        a_tau_set = False  
+
+        # Compute propagation paths
+        paths = self.scene.compute_paths(max_depth=self.rt_max_depth,
+                                    method="fibonacci",
+                                    num_samples=1e6,
+                                    los=True,
+                                    reflection=True,
+                                    diffraction=self.rt_calc_diffraction,
+                                    scattering=False)     
+
+        has_paths = bool(paths.types.numpy().size)
+        has_los_path = np.any(paths.types.numpy()[0] == 0)
+
+        # If no LOS path was found, check again with different compute_paths parameters
+        # here calculating the amesi optiki epafi , Reflections and Diffraction
+        if not has_los_path:
+            los_path = self.scene.compute_paths(max_depth=0,
+                                           method="fibonacci",
+                                           num_samples=1e6,
+                                           los=True,
+                                           reflection=False,
+                                           diffraction=False,
+                                           scattering=False)
+
+            has_los_path = bool(los_path.types.numpy().size)
+
+            if not has_paths and not has_los_path:
+                raise SystemExit(
+                    "Error: Propagation loss and propagation delay cannot be calculated because no propagation paths were found. "
+                    "Make sure that the nodes are not spatially separated in the 3D model and check the parameters of the compute_path() function.")
+            if has_los_path:
+                # Disable normalization of delays for LOS path
+                los_path.normalize_delays = False
+                # Compute the channel impulse response for LOS path
+                a, tau = los_path.cir()
+                a_tau_set = True        
+
+        if has_paths:
+            # Disable normalization of delays for paths
+            paths.normalize_delays = False
+            # Compute the channel impulse response for path
+            a_paths, tau_paths = paths.cir()
+
+            # Set a and tau
+            # a -> the amplitude of the signal 
+            # tay -> propagation delay
+            if a_tau_set:
+                a = tf.concat([a, a_paths], axis=5)
+                tau = tf.concat([tau, tau_paths], axis=3)
+            else:
+                a, tau = a_paths, tau_paths
+
+        # Compute the frequencies of subcarriers and center around carrier frequency
+        frequencies = subcarrier_frequencies(num_subcarriers=fft_size,
+                                             subcarrier_spacing=subcarrier_spacing)
+
+        # Compute the frequency response of the channel at frequencies
+        h_freq = cir_to_ofdm_channel(frequencies=frequencies,
+                                     a=a,
+                                     tau=tau,
+                                     normalize=False)
+        
+
+        # Disable normalization of delays for paths
+        paths.normalize_delays = False      
+        # Compute the channel impulse response for path
+        a_paths, tau_paths = paths.cir()  
+
+        # Calculate propagation delay
+        lnk_delay = int(round(np.min(tau[tau >= 0] * 1e9), 0)) #ns
+
+        # Calculate propagation loss
+        lnk_loss = float(-10 * np.log10(tf.reduce_mean(tf.abs(h_freq) ** 2).numpy())) # Db
+
+        #print channel info 
+
+        print("Delay: ", lnk_delay)
+        print("Loss: " , lnk_loss)
+        print("Frequency Response : ", h_freq.numpy())
+        print("Impluse Response ")
+        print("amplitudes: ", a.numpy())
+        print("delays: ", tau.numpy())
+        print("PATHS: ", paths)
+
+        # last_sim = simulation_time + (look_ahead - 1) * self.chan_coh_time_mode23
+        # print("Calc channel finished:: LAH: Twin=%.6f -> %.6f" % (simulation_time/1e9, last_sim/1e9))
+
+
+        
 
     def load_obj_from_file(self, obj_file, updateMaterial="default"):
         #using trimesh lib 
@@ -75,40 +208,71 @@ class SionnaEnv:
         for i, face in enumerate(mesh.faces):
             updateVertices = [mesh.vertices[idx] for idx in face] #transform vertices to load mesh vertices
             self.scene.add_object(name=f"object_{i}", vertices=updateVertices, material=updateMaterial)
-    
-    def compute_signal_effects(self):
-        tx = self.scene.get("Laptop")
-        rx = self.scene.get("Router")
-        paths = self.scene.compute_paths(tx.position, rx.position)
-        delays = paths.delays.numpy()
-        losses = paths.path_losses.numpy()
-        print("Loss : ", losses)
-        print("Delay : ", delays)
-        
 
+
+
+
+    #this method is about running simulation
+    def run_simulation(self, duration):
+        pass
+        
+    
     def render_scene(self):
         
-        #create Camera and initialize pars
-        cameraPos= [2,2,2]
-        lookAt = [0,0,0]
-        cam = Camera(name="MainCamera", position=cameraPos)
-        cam.look_at(lookAt)
+        fig = plt.figure(figsize=(10,8))
+        ax = fig.add_subplot(111, projection="3d")
         
-        #add to scene 
-        self.scene.add(cam)
-        
-        #take shot 
-        img = self.scene.render(cam)
-        
-        # #display img 
-        # plt.imshow(img)
-        # plt.axis("off")
-        # plt.title("CLI TOOL SCENE")
-        # plt.show()
-        
+        #plot Transmitter
+        if self.tx:
+            tx_pos = self.tx.position.numpy()
+            ax.scatter(tx_pos[0], tx_pos[1], tx_pos[2], c="r", marker="^", s=100, label="Transmitter")
 
+        #plot Receiver
+        if self.rx:
+            rx_pos = self.rx.position.numpy()
+            ax.scatter(rx_pos[0], rx_pos[1], rx_pos[2], c="g", marker="o", s=100, label="Receiver")
+
+        object_items = self.scene.objects.items()
+        for ob_name, ob in object_items:
+            if hasattr(ob, "position"):
+                pos = ob.position.numpy()
+                ax.scatter(pos[0], pos[1], pos[2], label=ob_name)
+
+            # if ob_name not in ["tx", "rx"]:
+            #     bb = ob.bounding_box()
+            #     center = bb.center.numpy()
+            #     size = bb.size.numpy()
+
+
+                # x = [center[0]-size[0]/2, center[0]+size[0]/2]
+                # y = [center[1]-size[1]/2, center[1]+size[1]/2]
+                # z = [center[2]-size[2]/2, center[2]+size[2]/2]
+
+                # for xi in x:
+                #     for yi in y:
+                #         ax.plot([xi,xi], [yi,yi], z, "b-", alpha=0.5)
+                #     for zi in z:
+                #         ax.plot([xi,xi], y, [zi,zi], "b-", alpha=0.5)
+                    
+                # for yi in y:
+                #     for zi in z:
+                #         ax.plot(x,[yi,yi],[zi,zi], "b-", alpha=0.5)
+
+                # ax.text(center[0], center[1], center[2], ob_name, color="blue")
+        
+        ax.set_xlabel("X(m)")
+        ax.set_ylabel("Y(m)")
+        ax.set_zlabel("Z(m)")
+        ax.set_title("Scene Graph")
+        ax.legend()
+        plt.tight_layout()
+        plt.show()
     
 
+
+
+    
+    
 if __name__ == '__main__':  
 
     parser = argparse.ArgumentParser()
@@ -127,13 +291,18 @@ if __name__ == '__main__':
     #initialize scene
     filepath = "./../models/simple_room/simple_room.xml"
     scene = load_scene(filepath)
-    env = SionnaEnv(scene, args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
-    transPos = [0,0,2]
-    env.add_transmitter_to_scene(transPos)
-    receiverPos = [5,0,2]
-    env.add_receiver_to_scene(receiverPos)
-    # env.compute_signal_effects()
+    frequency = 2.437e9
+    bandwith = 20e6
+    fft_size = 64
+
+    #setup enviroment and start simulation
+    env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
+    env.store_simulation_info()
+    env.create_communication_link("Laptop", [5,0,2], "Router", [0,0,0])
+    env.calculate_channel_state()
+    env.render_scene()
     
-    # env.render_scene()
+    
+    
     
     
