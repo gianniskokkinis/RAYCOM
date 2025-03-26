@@ -43,7 +43,6 @@ from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
 from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies
 from sionna.rt.antenna import iso_pattern
 import matplotlib.pyplot as plt
-import tkinter as tk
 
 
 class SionnaEnv:
@@ -67,6 +66,7 @@ class SionnaEnv:
         self.scene.frequency = updateFrequency
         self.scene.channel_bw = updateBandwith
         self.scene.fft_size = updateFft_size
+        self.new_object_id=1 #this is about new objects
         
 
     def store_simulation_info(self):
@@ -203,68 +203,61 @@ class SionnaEnv:
 
         
 
-    def load_obj_from_file(self, obj_file, updateMaterial="default"):
-        #using trimesh lib 
-        mesh = load_mesh(obj_file)
-        for i, face in enumerate(mesh.faces):
-            updateVertices = [mesh.vertices[idx] for idx in face] #transform vertices to load mesh vertices
-            self.scene.add_object(name=f"object_{i}", vertices=updateVertices, material=updateMaterial)
+    def load_obj_from_file(self, obj_file_path, updateMaterial):
+        
+        mi_object = mi.load_dict({
+            "type" : "obj",
+            "filename" : obj_file_path,
+            "face_normals" : True,
+            "bsdf" : {"type" : "ref", "id" :  updateMaterial}
+        })
+
+        put_object = SceneObject(mi_shape=mi_object)
+        self.scene.edit(add=[put_object])
+        
+        
+
+        
+        # #fix the xml code
+        # f_original_file = open(xml_file_path, "r")
+        # update_lines = [] 
+        
+        # for line in f_original_file:
+        #     if (line == "</scene>"):
+        #         #add the new object to xml file
+        #         update_lines.append(f"\t<shape type='obj' id='new_object_{self.new_object_id}'>\n")
+        #         update_lines.append(f"\t\t<string name='filename' value='{obj_file_path}'/>\n")
+        #         update_lines.append('\t\t<boolean name="face_normals" value="true"/>\n')
+        #         update_lines.append('\t\t<ref id="mat-itu_brick" name="bsdf"/>\n')
+        #         update_lines.append("\t</shape>\n")
+        #         update_lines.append(line)
+        #         self.new_object_id+=1
+        #     else:
+        #         update_lines.append(line)
+                
+        # f_original_file.close()    
+
+        
+        
+
+        #remove the file 
+        
 
 
+    #this function is about delete the new object if created
+    def terminate_simulation():
+        
+        pass
+        
+        
+        
 
 
 
     
     def display_stats(self):
-        
-        fig = plt.figure(figsize=(10,8))
-        ax = fig.add_subplot(111, projection="3d")
-        
-        #plot Transmitter
-        if self.tx:
-            tx_pos = self.tx.position.numpy()
-            ax.scatter(tx_pos[0], tx_pos[1], tx_pos[2], c="r", marker="^", s=100, label="Transmitter")
+        pass
 
-        #plot Receiver
-        if self.rx:
-            rx_pos = self.rx.position.numpy()
-            ax.scatter(rx_pos[0], rx_pos[1], rx_pos[2], c="g", marker="o", s=100, label="Receiver")
-
-        object_items = self.scene.objects.items()
-        for ob_name, ob in object_items:
-            if hasattr(ob, "position"):
-                pos = ob.position.numpy()
-                ax.scatter(pos[0], pos[1], pos[2], label=ob_name)
-
-            # if ob_name not in ["tx", "rx"]:
-            #     bb = ob.bounding_box()
-            #     center = bb.center.numpy()
-            #     size = bb.size.numpy()
-
-
-                # x = [center[0]-size[0]/2, center[0]+size[0]/2]
-                # y = [center[1]-size[1]/2, center[1]+size[1]/2]
-                # z = [center[2]-size[2]/2, center[2]+size[2]/2]
-
-                # for xi in x:
-                #     for yi in y:
-                #         ax.plot([xi,xi], [yi,yi], z, "b-", alpha=0.5)
-                #     for zi in z:
-                #         ax.plot([xi,xi], y, [zi,zi], "b-", alpha=0.5)
-                    
-                # for yi in y:
-                #     for zi in z:
-                #         ax.plot(x,[yi,yi],[zi,zi], "b-", alpha=0.5)
-
-                # ax.text(center[0], center[1], center[2], ob_name, color="blue")
-        
-        ax.set_xlabel("X(m)")
-        ax.set_ylabel("Y(m)")
-        ax.set_zlabel("Z(m)")
-        ax.set_title("Scene Graph")
-        ax.legend()
-        plt.tight_layout()
-        plt.show()
 
     def render_scene(self, updateResolution):
         cameraPos = [2,2,2]
@@ -303,13 +296,6 @@ if __name__ == '__main__':
     
 
 
-    # r = tk.Tk()
-    # r.title('Counting Seconds')
-    # button = tk.Button(r, text='Stop', width=25, command=r.destroy)
-    # button.pack()
-    # r.mainloop()
-
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_run", help="Whether not to terminate after single run", action='store_true')
     parser.add_argument("--rt_calc_diffraction", help="Calc diffraction in raytracing", action='store_true')
@@ -335,7 +321,13 @@ if __name__ == '__main__':
     env.store_simulation_info()
     env.create_communication_link("Laptop", [5,0,2], "Router", [0,0,0])
     env.calculate_channel_state()
-    env.render_scene([655,500])
+    # env.render_scene([655,500])
+
+    #test 
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/simple_table/table.obj"
+    env.load_obj_from_file(obj_file_path, "mat-itu_brick")
+
+    #end test
     
     
     
