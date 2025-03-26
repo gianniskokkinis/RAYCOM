@@ -43,6 +43,7 @@ from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
 from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies
 from sionna.rt.antenna import iso_pattern
 import matplotlib.pyplot as plt
+import tkinter as tk
 
 
 class SionnaEnv:
@@ -212,12 +213,9 @@ class SionnaEnv:
 
 
 
-    #this method is about running simulation
-    def run_simulation(self, duration):
-        pass
-        
+
     
-    def render_scene(self):
+    def display_stats(self):
         
         fig = plt.figure(figsize=(10,8))
         ax = fig.add_subplot(111, projection="3d")
@@ -267,13 +265,50 @@ class SionnaEnv:
         ax.legend()
         plt.tight_layout()
         plt.show()
+
+    def render_scene(self, updateResolution):
+        cameraPos = [2,2,2]
+        lookAt = [0,0,0]
+        set_camera = Camera(name="MainCamera", position=cameraPos)
+        set_camera.look_at(lookAt)
+        self.scene.add(set_camera)
+        
+
+        img = self.scene.render(
+            camera = set_camera,
+            resolution = updateResolution,
+            fov = 45.0,
+            num_samples = 32,
+            show_devices = True,
+        )
+        
+        # if img:
+        #    plt.imsave("scene_reder.png", img)
+
+        self.scene.preview(
+            background="white",
+            resolution = updateResolution,
+            fov = 45.0,
+            show_devices = True,
+            show_orientations = True 
+        )
+
     
 
 
 
     
     
-if __name__ == '__main__':  
+if __name__ == '__main__': 
+    
+
+
+    # r = tk.Tk()
+    # r.title('Counting Seconds')
+    # button = tk.Button(r, text='Stop', width=25, command=r.destroy)
+    # button.pack()
+    # r.mainloop()
+
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_run", help="Whether not to terminate after single run", action='store_true')
@@ -300,7 +335,7 @@ if __name__ == '__main__':
     env.store_simulation_info()
     env.create_communication_link("Laptop", [5,0,2], "Router", [0,0,0])
     env.calculate_channel_state()
-    env.render_scene()
+    env.render_scene([655,500])
     
     
     
