@@ -42,6 +42,7 @@ tf.get_logger().setLevel('ERROR')
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
 from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies
 from sionna.rt.antenna import iso_pattern
+from sionna.rt.scene_object import SceneObject
 import matplotlib.pyplot as plt
 
 
@@ -67,7 +68,7 @@ class SionnaEnv:
         self.scene.channel_bw = updateBandwith
         self.scene.fft_size = updateFft_size
         self.new_object_id=1 #this is about new objects
-        
+
 
     def store_simulation_info(self):
 
@@ -203,18 +204,41 @@ class SionnaEnv:
 
         
 
-    def load_obj_from_file(self, obj_file_path, updateMaterial):
+    def load_obj_from_file(self, obj_file_path, obj_name ,updateMaterial):
         
-        mi_object = mi.load_dict({
+        #test
+        print("--------------------SCENE OBJECTS----------------------- ")
+        print(self.scene.objects.keys())
+        print("------------------------------------------- ")
+        print("Materials : ", self.scene.radio_materials[updateMaterial])
+        print(f"{updateMaterial} in self.scene.radio_materials ", updateMaterial in self.scene.radio_materials)
+        #end test
+        
+        set_mi_shape = mi.load_dict({
             "type" : "obj",
-            "filename" : obj_file_path,
-            "face_normals" : True,
-            "bsdf" : {"type" : "ref", "id" :  updateMaterial}
+            "filename":obj_file_path,
+            "face_normals" : True
         })
-
-        put_object = SceneObject(mi_shape=mi_object)
-        self.scene.edit(add=[put_object])
         
+
+        put_Object = SceneObject(
+            name=obj_name,
+            object_id=self.new_object_id,
+            scene=self.scene,
+            mi_shape=set_mi_shape,
+            # radio_material=self.scene.radio_materials[updateMaterial]
+        )
+        self.new_object_id+=1
+
+        #add object to scene
+        self.scene._scene_objects[obj_name] = put_Object
+        print("self.scene._scene_objects: ")
+        print(self.scene._scene_objects)
+
+    
+        
+    
+
         
 
         
@@ -312,6 +336,7 @@ if __name__ == '__main__':
     #initialize scene
     filepath = "./../models/simple_room/simple_room.xml"
     scene = load_scene(filepath)
+
     frequency = 2.437e9
     bandwith = 20e6
     fft_size = 64
@@ -325,7 +350,7 @@ if __name__ == '__main__':
 
     #test 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/simple_table/table.obj"
-    env.load_obj_from_file(obj_file_path, "mat-itu_brick")
+    env.load_obj_from_file(obj_file_path, "table", "itu_brick")
 
     #end test
     
