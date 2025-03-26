@@ -232,9 +232,22 @@ class SionnaEnv:
 
         #add object to scene
         self.scene._scene_objects[obj_name] = put_Object
-        print("self.scene._scene_objects: ")
-        print(self.scene._scene_objects)
+        
+        #for Debugging
+        #print("self.scene._scene_objects: ")
+        #print(self.scene._scene_objects)
 
+        #add shape to Mitsuba scene
+        self.scene._scene = mi.load_dict({"type":"scene"})
+
+
+        #creating new scene for Mitsuba 
+        #test
+        print("self.scene._scene.shapes()")
+        print(self.scene._scene.shapes()+[set_mi_shape])
+        #end test
+        
+        self.scene.scene_geometry_updated()
     
         
     
