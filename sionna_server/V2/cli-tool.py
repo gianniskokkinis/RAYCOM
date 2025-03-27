@@ -1,6 +1,8 @@
 import os
 os.environ['LD_LIBRARY_PATH'] = '/usr/lib/llvm-13/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
 os.environ['DRJIT_LIBLLVM_PATH'] = '/usr/lib/llvm-13/lib/libLLVM.so'
+os.environ['MI_DEFAULT_VARIANT'] = 'llvm_ad_rgb'
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
 # print("-----------------HERE PATHS -----------------")
 # print("LD_LIBRARY_PATH:", os.environ.get('LD_LIBRARY_PATH'))
@@ -44,6 +46,9 @@ from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies
 from sionna.rt.antenna import iso_pattern
 from sionna.rt.scene_object import SceneObject
 import matplotlib.pyplot as plt
+import matplotlib as mat
+from IPython.display import Image,display
+import pyvista
 
 
 class SionnaEnv:
@@ -110,6 +115,8 @@ class SionnaEnv:
         
         # WiFi parameters
         subcarrier_spacing = (self.channel_bw / self.fft_size)  # 312.5e3
+        print("------------ subcarrier_spacing ------------")
+        print(subcarrier_spacing)
         fft_size = self.fft_size  # 64
 
         a, tau = 0, 0
@@ -192,12 +199,14 @@ class SionnaEnv:
 
         print("Delay: ", lnk_delay)
         print("Loss: " , lnk_loss)
+        print("Frequencies ", frequencies.numpy())
         print("Frequency Response : ", h_freq.numpy())
-        print("Impluse Response ")
+        print("Impulse Response ")
         print("amplitudes: ", a.numpy())
         print("delays: ", tau.numpy())
         print("PATHS: ", paths)
 
+        self.display_stats(frequencies,h_freq,a,tau,paths)
         # last_sim = simulation_time + (look_ahead - 1) * self.chan_coh_time_mode23
         # print("Calc channel finished:: LAH: Twin=%.6f -> %.6f" % (simulation_time/1e9, last_sim/1e9))
 
@@ -207,11 +216,11 @@ class SionnaEnv:
     def load_obj_from_file(self, obj_file_path, obj_name ,updateMaterial):
         
         #test
-        print("--------------------SCENE OBJECTS----------------------- ")
-        print(self.scene.objects.keys())
-        print("------------------------------------------- ")
-        print("Materials : ", self.scene.radio_materials[updateMaterial])
-        print(f"{updateMaterial} in self.scene.radio_materials ", updateMaterial in self.scene.radio_materials)
+        # print("--------------------SCENE OBJECTS----------------------- ")
+        # print(self.scene.objects.keys())
+        # print("------------------------------------------- ")
+        # print("Materials : ", self.scene.radio_materials[updateMaterial])
+        # print(f"{updateMaterial} in self.scene.radio_materials ", updateMaterial in self.scene.radio_materials)
         #end test
         
         set_mi_shape = mi.load_dict({
@@ -229,7 +238,7 @@ class SionnaEnv:
             # radio_material=self.scene.radio_materials[updateMaterial]
         )
         self.new_object_id+=1
-
+        put_Object.radio_material = updateMaterial
         #add object to scene
         self.scene._scene_objects[obj_name] = put_Object
         
@@ -250,40 +259,16 @@ class SionnaEnv:
         self.scene.scene_geometry_updated()
     
         
+
+        
+        
+
     
-
-        
-
-        
-        # #fix the xml code
-        # f_original_file = open(xml_file_path, "r")
-        # update_lines = [] 
-        
-        # for line in f_original_file:
-        #     if (line == "</scene>"):
-        #         #add the new object to xml file
-        #         update_lines.append(f"\t<shape type='obj' id='new_object_{self.new_object_id}'>\n")
-        #         update_lines.append(f"\t\t<string name='filename' value='{obj_file_path}'/>\n")
-        #         update_lines.append('\t\t<boolean name="face_normals" value="true"/>\n')
-        #         update_lines.append('\t\t<ref id="mat-itu_brick" name="bsdf"/>\n')
-        #         update_lines.append("\t</shape>\n")
-        #         update_lines.append(line)
-        #         self.new_object_id+=1
-        #     else:
-        #         update_lines.append(line)
-                
-        # f_original_file.close()    
-
-        
-        
-
-        #remove the file 
         
 
 
     #this function is about delete the new object if created
-    def terminate_simulation():
-        
+    def terminate_simulation(self):
         pass
         
         
@@ -292,37 +277,102 @@ class SionnaEnv:
 
 
     
-    def display_stats(self):
+    def display_stats(self, frequencies, h_freq, a, tau, paths):
+        
+        mat.use("Qt5Agg")
+
+        plt.figure(figsize=(15,10))
+        
+        plt.title("itu_plasterboard")
+        
+        #display the frequency response Magnitude
+        plt.subplot(2,2,1)
+        display_frequencies = frequencies.numpy()
+        #get the array
+        display_h_freq = h_freq.numpy()[0][0][0][0][0][0][:]
+        #convert the h_freq from imaginary to DB
+        plt.plot(display_frequencies, 20*np.log10(np.abs(display_h_freq)), "b")
+        plt.title("Frequency Response (Magnitude)")
+        plt.xlabel("Frequencies (GHz)")
+        plt.ylabel("Magnitude (DB)")
+        plt.grid(True)
+
+        #display the frequency response Phase 
+        plt.subplot(2,2,2)
+        plt.plot(display_frequencies, np.angle(display_h_freq), "r")
+        plt.title("Frequency Response (Phase)")
+        plt.xlabel("Frequencies (GHz)")
+        plt.ylabel("phase (rad)")
+        plt.grid(True)
+
+        #display Impulse Response (Amplitudes and Delays)
+        plt.subplot(2,2,3)
+        amplitudes = a.numpy().flatten()
+        display_amplitudes = np.abs(amplitudes)
+        display_delays = tau.numpy().flatten()
+        plt.stem(display_delays, display_amplitudes, linefmt="b-", markerfmt="bo", basefmt=' ')
+        plt.title("Impulse Response (Power)")
+        plt.xlabel("Delay [s]")
+        plt.ylabel("Amplitude")
+        plt.grid(True)
+        
+
+        
+
+        plt.tight_layout()
+        plt.show()
+
+            
+
+        
         pass
 
 
-    def render_scene(self, updateResolution):
-        cameraPos = [2,2,2]
-        lookAt = [0,0,0]
+    def preview_the_scene(self, updateResolution):
+        cameraPos = [1,3,2]
+        lookAt = [1.5,2,0.36]
         set_camera = Camera(name="MainCamera", position=cameraPos)
         set_camera.look_at(lookAt)
         self.scene.add(set_camera)
-        
+            
 
-        img = self.scene.render(
+
+        # try:
+        #     preview = self.scene.preview(
+        #     resolution=updateResolution,
+        #     fov=45,
+        #     background="#ffffff",
+        #     show_devices=True,
+        #     show_orientations=True
+        #     )
+
+        #     display(preview)
+        # except Exception as e:
+        #     print(e)
+        
+        # self.scene.render(
+        #     camera = set_camera,
+        #     resolution=updateResolution,
+        #     fov=45,
+        #     show_devices=True,
+        #     cm_db_scale=True,
+        #     cm_show_color_bar=True,
+        #     num_samples=512
+        # )
+
+
+        self.scene.render_to_file(
             camera = set_camera,
-            resolution = updateResolution,
-            fov = 45.0,
-            num_samples = 32,
-            show_devices = True,
+            filename="preview.png",
+            resolution=updateResolution,
+            fov=45,
+            show_devices=True,
+            num_samples=512
         )
+
+        Image(filename="preview")
+
         
-        # if img:
-        #    plt.imsave("scene_reder.png", img)
-
-        self.scene.preview(
-            background="white",
-            resolution = updateResolution,
-            fov = 45.0,
-            show_devices = True,
-            show_orientations = True 
-        )
-
     
 
 
@@ -332,7 +382,7 @@ class SionnaEnv:
 if __name__ == '__main__': 
     
 
-
+    
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_run", help="Whether not to terminate after single run", action='store_true')
     parser.add_argument("--rt_calc_diffraction", help="Calc diffraction in raytracing", action='store_true')
@@ -345,6 +395,7 @@ if __name__ == '__main__':
     print("HELLO SIONNA!!!")
 
     
+    
 
     #initialize scene
     filepath = "./../models/simple_room/simple_room.xml"
@@ -356,16 +407,20 @@ if __name__ == '__main__':
 
     #setup enviroment and start simulation
     env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
+    env.load_obj_from_file(obj_file_path, "barrier-wall", "itu_plasterboard")
+
     env.store_simulation_info()
-    env.create_communication_link("Laptop", [5,0,2], "Router", [0,0,0])
+    env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
+    # env.create_communication_link("Laptop", [1.5,2,1], "Router", [1.25,2,1])
     env.calculate_channel_state()
-    # env.render_scene([655,500])
-
-    #test 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/simple_table/table.obj"
-    env.load_obj_from_file(obj_file_path, "table", "itu_brick")
-
-    #end test
+    
+    try:
+        env.preview_the_scene([655,500])
+        print("!!! PREVIEW DONE !!!")
+    except Exception as e:
+        print(e)
+    
     
     
     
