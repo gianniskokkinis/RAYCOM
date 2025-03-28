@@ -1,7 +1,7 @@
 import os
 os.environ['LD_LIBRARY_PATH'] = '/usr/lib/llvm-13/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
 os.environ['DRJIT_LIBLLVM_PATH'] = '/usr/lib/llvm-13/lib/libLLVM.so'
-os.environ['MI_DEFAULT_VARIANT'] = 'llvm_ad_rgb'
+# os.environ['MI_DEFAULT_VARIANT'] = 'llvm_ad_rgb'
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
 # print("-----------------HERE PATHS -----------------")
@@ -20,8 +20,8 @@ import os
 
 from commons import *
 
-gpu_num = 0 # Use "" to use the CPU
-os.environ["CUDA_VISIBLE_DEVICES"] = f"{gpu_num}"
+
+os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import sionna
@@ -33,13 +33,14 @@ import warnings
 import time
 from trimesh import load_mesh
 
-gpus = tf.config.list_physical_devices('GPU')
-if gpus:
-    try:
-        tf.config.experimental.set_memory_growth(gpus[0], True)
-    except RuntimeError as e:
-        print(e)
-tf.get_logger().setLevel('ERROR')
+# mi.set_variant('llvm_ad_rgb')
+# gpus = tf.config.list_physical_devices('GPU')
+# if gpus:
+#     try:
+#         tf.config.experimental.set_memory_growth(gpus[0], True)
+#     except RuntimeError as e:
+#         print(e)
+# tf.get_logger().setLevel('ERROR')
 
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
 from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies
@@ -48,7 +49,6 @@ from sionna.rt.scene_object import SceneObject
 import matplotlib.pyplot as plt
 import matplotlib as mat
 from IPython.display import Image,display
-import pyvista
 
 
 class SionnaEnv:
@@ -73,6 +73,7 @@ class SionnaEnv:
         self.scene.channel_bw = updateBandwith
         self.scene.fft_size = updateFft_size
         self.new_object_id=1 #this is about new objects
+        self.paths=[]
 
 
     def store_simulation_info(self):
@@ -130,6 +131,8 @@ class SionnaEnv:
                                     reflection=True,
                                     diffraction=self.rt_calc_diffraction,
                                     scattering=False)     
+
+        self.paths = paths
 
         has_paths = bool(paths.types.numpy().size)
         has_los_path = np.any(paths.types.numpy()[0] == 0)
@@ -215,49 +218,79 @@ class SionnaEnv:
 
     def load_obj_from_file(self, obj_file_path, obj_name ,updateMaterial):
         
-        #test
+
+
+        #FOR DEBUGGING
         # print("--------------------SCENE OBJECTS----------------------- ")
         # print(self.scene.objects.keys())
         # print("------------------------------------------- ")
         # print("Materials : ", self.scene.radio_materials[updateMaterial])
         # print(f"{updateMaterial} in self.scene.radio_materials ", updateMaterial in self.scene.radio_materials)
-        #end test
         
         set_mi_shape = mi.load_dict({
             "type" : "obj",
             "filename":obj_file_path,
-            "face_normals" : True
+            "face_normals" : True,
+            "id": f"mesh-{obj_name}"
         })
         
-
+    
         put_Object = SceneObject(
             name=obj_name,
             object_id=self.new_object_id,
             scene=self.scene,
-            mi_shape=set_mi_shape,
-            # radio_material=self.scene.radio_materials[updateMaterial]
+            mi_shape=set_mi_shape
         )
         self.new_object_id+=1
         put_Object.radio_material = updateMaterial
+
         #add object to scene
         self.scene._scene_objects[obj_name] = put_Object
+
+
+        #setup dict for new scene
+        temp_scene_dict = {"type": "scene",
+                            "integrator": {
+                                    "type": "path",
+                                        }}
         
-        #for Debugging
-        #print("self.scene._scene_objects: ")
-        #print(self.scene._scene_objects)
+        #temp_scene_dict[f"shape_{i}"] = obj._mi_shape
 
-        #add shape to Mitsuba scene
-        self.scene._scene = mi.load_dict({"type":"scene"})
+        #copy the old and new items
+        for i,obj in enumerate(self.scene._scene_objects.values()):
+            print("Material ", obj.radio_material) #test
+            temp_scene_dict[f"shape_{i}"] = obj._mi_shape
 
+        self.scene._scene = mi.load_dict(temp_scene_dict)
 
-        #creating new scene for Mitsuba 
-        #test
-        print("self.scene._scene.shapes()")
-        print(self.scene._scene.shapes()+[set_mi_shape])
-        #end test
-        
+        self.scene._scene_params = mi.traverse(self.scene._scene)
+
+        # Load the cameras
+        self.scene._load_cameras()
+
+        # Load the scene objects
+        self.scene._load_scene_objects()
+
+        # By default, no callable is used for radio materials
+        self.scene.radio_material_callable = None
+
+        # By default, no callable is used for scattering patterns
+        self.scene._scattering_pattern_callable = None
+
         self.scene.scene_geometry_updated()
-    
+        
+        
+        
+        
+
+
+
+        #For Debbuging
+        # print("------------- AFTER UPDATE -------------")
+        # print("SHAPES : ", self.scene._scene.shapes)
+        # print("OBJECTS : ", self.scene._scene_objects)
+        # print("----------------------------------------")
+        
         
 
         
@@ -329,8 +362,9 @@ class SionnaEnv:
 
 
     def preview_the_scene(self, updateResolution):
-        cameraPos = [1,3,2]
-        lookAt = [1.5,2,0.36]
+        cameraPos = [1,3,15]
+        # lookAt = [3,0,2.5]
+        lookAt = [0,0,0]
         set_camera = Camera(name="MainCamera", position=cameraPos)
         set_camera.look_at(lookAt)
         self.scene.add(set_camera)
@@ -360,18 +394,22 @@ class SionnaEnv:
         #     num_samples=512
         # )
 
+        #test
+        print("self.scene._scene.shapes() : ")
+        print(self.scene._scene.shapes())
+        #end test
 
         self.scene.render_to_file(
             camera = set_camera,
-            filename="preview.png",
+            filename="preview.jpg",
             resolution=updateResolution,
-            fov=45,
+            paths = self.paths,
+            show_paths = False,
+            fov=60,
             show_devices=True,
-            num_samples=512
+            coverage_map = None,
+            num_samples=1024
         )
-
-        Image(filename="preview")
-
         
     
 
@@ -400,6 +438,8 @@ if __name__ == '__main__':
     #initialize scene
     filepath = "./../models/simple_room/simple_room.xml"
     scene = load_scene(filepath)
+    # scene = load_scene(sionna.rt.scene.simple_street_canyon_with_cars)
+    
 
     frequency = 2.437e9
     bandwith = 20e6
@@ -409,14 +449,14 @@ if __name__ == '__main__':
     env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
     env.load_obj_from_file(obj_file_path, "barrier-wall", "itu_plasterboard")
-
+    
     env.store_simulation_info()
     env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
     # env.create_communication_link("Laptop", [1.5,2,1], "Router", [1.25,2,1])
     env.calculate_channel_state()
     
     try:
-        env.preview_the_scene([655,500])
+        env.preview_the_scene([480,480])
         print("!!! PREVIEW DONE !!!")
     except Exception as e:
         print(e)
