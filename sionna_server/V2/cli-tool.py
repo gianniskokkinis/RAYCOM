@@ -43,12 +43,19 @@ from trimesh import load_mesh
 # tf.get_logger().setLevel('ERROR')
 
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
-from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies
+from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies, AWGN
 from sionna.rt.antenna import iso_pattern
 from sionna.rt.scene_object import SceneObject
+from sionna.utils.misc import *
+from sionna.utils.metrics import *
+from sionna.mapping import *
 import matplotlib.pyplot as plt
 import matplotlib as mat
 from IPython.display import Image,display
+
+
+
+
 
 
 class SionnaEnv:
@@ -74,6 +81,7 @@ class SionnaEnv:
         self.scene.fft_size = updateFft_size
         self.new_object_id=1 #this is about new objects
         self.paths=[]
+
 
 
     def store_simulation_info(self):
@@ -120,7 +128,7 @@ class SionnaEnv:
         print(subcarrier_spacing)
         fft_size = self.fft_size  # 64
 
-        a, tau = 0, 0
+        self.a, self.tau = 0, 0
         a_tau_set = False  
 
         # Compute propagation paths
@@ -158,7 +166,7 @@ class SionnaEnv:
                 # Disable normalization of delays for LOS path
                 los_path.normalize_delays = False
                 # Compute the channel impulse response for LOS path
-                a, tau = los_path.cir()
+                self.a, self.tau = los_path.cir()
                 a_tau_set = True        
 
         if has_paths:
@@ -171,19 +179,19 @@ class SionnaEnv:
             # a -> the amplitude of the signal 
             # tay -> propagation delay
             if a_tau_set:
-                a = tf.concat([a, a_paths], axis=5)
-                tau = tf.concat([tau, tau_paths], axis=3)
+                self.a = tf.concat([self.a, a_paths], axis=5)
+                self.tau = tf.concat([self.tau, tau_paths], axis=3)
             else:
-                a, tau = a_paths, tau_paths
+                self.a, self.tau = a_paths, tau_paths
 
         # Compute the frequencies of subcarriers and center around carrier frequency
-        frequencies = subcarrier_frequencies(num_subcarriers=fft_size,
+        self.frequencies = subcarrier_frequencies(num_subcarriers=fft_size,
                                              subcarrier_spacing=subcarrier_spacing)
 
         # Compute the frequency response of the channel at frequencies
-        h_freq = cir_to_ofdm_channel(frequencies=frequencies,
-                                     a=a,
-                                     tau=tau,
+        self.h_freq = cir_to_ofdm_channel(frequencies=self.frequencies,
+                                     a=self.a,
+                                     tau=self.tau,
                                      normalize=False)
         
 
@@ -193,23 +201,23 @@ class SionnaEnv:
         a_paths, tau_paths = paths.cir()  
 
         # Calculate propagation delay
-        lnk_delay = int(round(np.min(tau[tau >= 0] * 1e9), 0)) #ns
+        lnk_delay = int(round(np.min(self.tau[self.tau >= 0] * 1e9), 0)) #ns
 
         # Calculate propagation loss
-        lnk_loss = float(-10 * np.log10(tf.reduce_mean(tf.abs(h_freq) ** 2).numpy())) # Db
+        lnk_loss = float(-10 * np.log10(tf.reduce_mean(tf.abs(self.h_freq) ** 2).numpy())) # Db
 
         #print channel info 
 
         print("Delay: ", lnk_delay)
         print("Loss: " , lnk_loss)
-        print("Frequencies ", frequencies.numpy())
-        print("Frequency Response : ", h_freq.numpy())
+        print("Frequencies ", self.frequencies.numpy())
+        print("Frequency Response : ", self.h_freq.numpy())
         print("Impulse Response ")
-        print("amplitudes: ", a.numpy())
-        print("delays: ", tau.numpy())
+        print("amplitudes: ", self.a.numpy())
+        print("delays: ", self.tau.numpy())
         print("PATHS: ", paths)
 
-        self.display_stats(frequencies,h_freq,a,tau,paths)
+        
         # last_sim = simulation_time + (look_ahead - 1) * self.chan_coh_time_mode23
         # print("Calc channel finished:: LAH: Twin=%.6f -> %.6f" % (simulation_time/1e9, last_sim/1e9))
 
@@ -284,7 +292,6 @@ class SionnaEnv:
         fixLines = []
         f = open(xml_file_path, 'r')
         for line in f:
-            # print(line)
             fixLines.append(line)
             #add maeterial 
             if ("<!-- Materials -->" in line):
@@ -297,6 +304,7 @@ class SionnaEnv:
             
             #add object
             if ("<!-- Shapes -->" in line):
+                fixLines.append("\n")
                 fixLines.append(f'\t<shape type="obj" id="mesh-{obj_name}">\n')
                 fixLines.append(f'\t\t<string name="filename" value="{obj_file_path}"/>\n')
                 fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
@@ -307,7 +315,7 @@ class SionnaEnv:
         # for line in fixLines:
         #     print(line)
 
-        #test
+        
         get_path = filepath.split('/')[0:-1]
         tempPath = ""
         for el in get_path:
@@ -322,7 +330,7 @@ class SionnaEnv:
         
         f.close()
 
-        #end test
+       
 
         
         
@@ -364,26 +372,92 @@ class SionnaEnv:
         # print("OBJECTS : ", self.scene._scene_objects)
         # print("----------------------------------------")
         
+
+    def simulate_digital_communication(self, ebno_db):
         
+        
+        #generate random bits 
+        self.binary_source = BinarySource()
+
+
+        self.modulations = {
+            "pam" : {
+                "type" : "pam" , 
+                "num_bits" : 1
+            },
+
+            "4-pam" : {
+                "type" : "pam" ,
+                "num_bits" : 2
+            },
+            
+            "16-qam" : {
+                "type" : "qam",
+                "num_bits" : 4
+            },
+
+            "64-qam" : {
+                "type" : "qam",
+                "num_bits" : 6
+            }            
+        }
 
         
+
+        h_freq = self.h_freq.numpy()
+
+        #test all modulations
+        self.results = {}
+        for modulation, modulation_params in self.modulations.items():
+            
+            num_bits = self.fft_size * modulation_params['num_bits']
+            bits = self.binary_source([1, num_bits])
+            
+            #modulation
+            if (modulation_params["type"] == "pam"):
+                mapper = Mapper(constellation_type="pam", num_bits_per_symbol=modulation_params["num_bits"])
+            else:
+                mapper = Mapper(constellation_type="qam", num_bits_per_symbol=modulation_params["num_bits"])
+            symbols = mapper(bits)
+
+            #Using channel to sends
+            symbols_ofdm = tf.signal.fft(tf.cast(symbols, tf.complex64))
+            symbols_channel = symbols_ofdm * h_freq
+            awgn_channel = AWGN()
+            no = 10**(-ebno_db/10)
+            y = awgn_channel((symbols_channel,no))
+
+            #demodulation
+            y_time = tf.signal.ifft(y)
+            if (modulation_params["type"] == "pam"):
+                demapper = Demapper(demapping_method="app", constellation_type="pam", num_bits_per_symbol=modulation_params["num_bits"])
+            else:
+                demapper = Demapper(demapping_method="app", constellation_type="qam", num_bits_per_symbol=modulation_params["num_bits"])
+            
+            llr = demapper([tf.expand_dims(y_time, axis=0), no])
+            bits_hat = tf.cast(llr>0, tf.float32)
+
         
+            #calculate Bit Error Rate 
+            ber = compute_ber(bits, bits_hat)
+
+            self.results[modulation] = {
+                "ber" : ber.numpy(),
+                "constellation" : symbols.numpy(),
+                "received" : y_time.numpy()
+            }
+
+        
+
+
+
+        
+
+
+
 
     
-        
-
-
-    #this function is about delete the new object if created
-    def terminate_simulation(self):
-        pass
-        
-        
-        
-
-
-
-    
-    def display_stats(self, frequencies, h_freq, a, tau, paths):
+    def display_stats(self):
         
         mat.use("Qt5Agg")
 
@@ -393,9 +467,9 @@ class SionnaEnv:
         
         #display the frequency response Magnitude
         plt.subplot(2,2,1)
-        display_frequencies = frequencies.numpy()
+        display_frequencies = self.frequencies.numpy()
         #get the array
-        display_h_freq = h_freq.numpy()[0][0][0][0][0][0][:]
+        display_h_freq = self.h_freq.numpy()[0][0][0][0][0][0][:]
         #convert the h_freq from imaginary to DB
         plt.plot(display_frequencies, 20*np.log10(np.abs(display_h_freq)), "b")
         plt.title("Frequency Response (Magnitude)")
@@ -413,9 +487,9 @@ class SionnaEnv:
 
         #display Impulse Response (Amplitudes and Delays)
         plt.subplot(2,2,3)
-        amplitudes = a.numpy().flatten()
+        amplitudes = self.a.numpy().flatten()
         display_amplitudes = np.abs(amplitudes)
-        display_delays = tau.numpy().flatten()
+        display_delays = self.tau.numpy().flatten()
         plt.stem(display_delays, display_amplitudes, linefmt="b-", markerfmt="bo", basefmt=' ')
         plt.title("Impulse Response (Power)")
         plt.xlabel("Delay [s]")
@@ -428,44 +502,90 @@ class SionnaEnv:
         plt.tight_layout()
         plt.show()
 
+        #plot Bit Error Rate 
+        plt.figure(figsize=(15,10))
+        plt.title("Bit Error Rate")
+        
+        #display BER    
+        plt.subplot(2,4,1)    
+        for modulation, result in self.results.items():
+            plt.bar(modulation, result["ber"], alpha=0.6)
+        plt.title("Bit Error Rate (BER)")
+        plt.yscale("log")
+        plt.grid(True)
+
+        #display (4-PAM) 
+
+        # Constellation
+        plt.subplot(2,4,2)
+        symbols = self.results["4-pam"]["constellation"]
+        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        plt.title("Modulated Symbols (4-pam)")
+        plt.grid(True)
+
+        # Receiver
+        plt.subplot(2,4,3)
+        symbols = self.results["4-pam"]["received"]
+        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        plt.title("Demodulated Symbols (4-pam)")
+        plt.grid(True)
+
+
+        #display (16-QAM)
+
+        # Constellation
+        plt.subplot(2,4,4)
+        symbols = self.results["16-qam"]["constellation"]
+        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        plt.title("Modulated Symbols (4-pam)")
+        plt.grid(True)
+
+        # Receiver
+        plt.subplot(2,4,6)
+        symbols = self.results["16-qam"]["received"]
+        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        plt.title("Demodulated Symbols (4-pam)")
+        plt.grid(True)
+
+
+        #display (64-QAM)
+
+        # Constellation
+        plt.subplot(2,4,7)
+        symbols = self.results["64-qam"]["constellation"]
+        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        plt.title("Modulated Symbols (4-pam)")
+        plt.grid(True)
+
+        # Receiver
+        plt.subplot(2,4,8)
+        symbols = self.results["64-qam"]["received"]
+        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        plt.title("Demodulated Symbols (4-pam)")
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+
+
+
+
+
             
 
         
-        pass
+        
 
 
     def preview_the_scene(self, updateResolution):
-        cameraPos = [1,3,6]
+        cameraPos = [0,3,6]
         # lookAt = [3,0,2.5]
         lookAt = [4.5,2,1]
         set_camera = Camera(name="MainCamera", position=cameraPos)
         set_camera.look_at(lookAt)
         self.scene.add(set_camera)
-            
-
-
-        # try:
-        #     preview = self.scene.preview(
-        #     resolution=updateResolution,
-        #     fov=45,
-        #     background="#ffffff",
-        #     show_devices=True,
-        #     show_orientations=True
-        #     )
-
-        #     display(preview)
-        # except Exception as e:
-        #     print(e)
         
-        # self.scene.render(
-        #     camera = set_camera,
-        #     resolution=updateResolution,
-        #     fov=45,
-        #     show_devices=True,
-        #     cm_db_scale=True,
-        #     cm_show_color_bar=True,
-        #     num_samples=512
-        # )
 
         #test
         print("self.scene._scene.shapes() : ")
@@ -527,9 +647,14 @@ if __name__ == '__main__':
     env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
     # env.create_communication_link("Laptop", [1.5,2,1], "Router", [1.25,2,1])
     env.calculate_channel_state()
+    env.simulate_digital_communication(10)
+
+    
+
+    env.display_stats()
     
     try:
-        env.preview_the_scene([1280,720])
+        env.preview_the_scene([480,480])
         print("!!! PREVIEW DONE !!!")
     except Exception as e:
         print(e)
