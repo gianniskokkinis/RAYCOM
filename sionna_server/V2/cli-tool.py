@@ -288,6 +288,16 @@ class SionnaEnv:
         #     }
 
         #create temp xml file and fix 
+        
+        
+        checkList = []
+
+        for obj in self.scene._scene_objects.values():
+            checkList.append(obj._radio_material._name)
+            print("Radio Material: ", obj._radio_material._name)
+
+        isMaterialOnOtherObj = updateMaterial in checkList    
+
         print("---------- FILE ----------")
         fixLines = []
         f = open(xml_file_path, 'r')
@@ -295,12 +305,13 @@ class SionnaEnv:
             fixLines.append(line)
             #add maeterial 
             if ("<!-- Materials -->" in line):
-                fixLines.append("\n")
-                fixLines.append(f'\t<bsdf type="twosided" id="mat-{updateMaterial}">\n')
-                fixLines.append('\t\t<bsdf type="diffuse">\n')
-                fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
-                fixLines.append('\t\t</bsdf>\n')
-                fixLines.append('\t</bsdf>\n')
+                if (not isMaterialOnOtherObj):
+                    fixLines.append("\n")
+                    fixLines.append(f'\t<bsdf type="twosided" id="mat-{updateMaterial}">\n')
+                    fixLines.append('\t\t<bsdf type="diffuse">\n')
+                    fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
+                    fixLines.append('\t\t</bsdf>\n')
+                    fixLines.append('\t</bsdf>\n')
             
             #add object
             if ("<!-- Shapes -->" in line):
@@ -457,13 +468,13 @@ class SionnaEnv:
 
 
     
-    def display_stats(self):
+    def display_stats(self, material_display):
         
         mat.use("Qt5Agg")
 
         plt.figure(figsize=(15,10))
         
-        plt.title("itu_plasterboard")
+        plt.title(material_display)
         
         #display the frequency response Magnitude
         plt.subplot(2,2,1)
@@ -517,14 +528,14 @@ class SionnaEnv:
         #display (4-PAM) 
 
         # Constellation
-        plt.subplot(2,4,2)
+        plt.subplot(2,4,3)
         symbols = self.results["4-pam"]["constellation"]
         plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
         plt.title("Modulated Symbols (4-pam)")
         plt.grid(True)
 
         # Receiver
-        plt.subplot(2,4,3)
+        plt.subplot(2,4,4)
         symbols = self.results["4-pam"]["received"]
         plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
         plt.title("Demodulated Symbols (4-pam)")
@@ -534,17 +545,17 @@ class SionnaEnv:
         #display (16-QAM)
 
         # Constellation
-        plt.subplot(2,4,4)
+        plt.subplot(2,4,5)
         symbols = self.results["16-qam"]["constellation"]
         plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Modulated Symbols (4-pam)")
+        plt.title("Modulated Symbols (16-pam)")
         plt.grid(True)
 
         # Receiver
         plt.subplot(2,4,6)
         symbols = self.results["16-qam"]["received"]
         plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Demodulated Symbols (4-pam)")
+        plt.title("Demodulated Symbols (16-pam)")
         plt.grid(True)
 
 
@@ -554,14 +565,14 @@ class SionnaEnv:
         plt.subplot(2,4,7)
         symbols = self.results["64-qam"]["constellation"]
         plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Modulated Symbols (4-pam)")
+        plt.title("Modulated Symbols (64-pam)")
         plt.grid(True)
 
         # Receiver
         plt.subplot(2,4,8)
         symbols = self.results["64-qam"]["received"]
         plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Demodulated Symbols (4-pam)")
+        plt.title("Demodulated Symbols (64-pam)")
         plt.grid(True)
 
         plt.tight_layout()
@@ -640,9 +651,22 @@ if __name__ == '__main__':
 
     #setup enviroment and start simulation
     env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
-    env.load_obj_from_file(obj_file_path, "barrier-wall", filepath, "itu_wood")
     
+    #add objects 
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
+    env.load_obj_from_file(obj_file_path, "barrier-wall", filepath, "itu_brick")
+    
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall2.obj"
+    env.load_obj_from_file(obj_file_path, "barrier-wall-2", filepath, "itu_brick")
+    
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall3.obj"
+    env.load_obj_from_file(obj_file_path, "barrier-wall-3", filepath, "itu_brick")
+
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall4.obj"
+    env.load_obj_from_file(obj_file_path, "barrier-wall-4", filepath, "itu_brick")
+        
+
+
     env.store_simulation_info()
     env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
     # env.create_communication_link("Laptop", [1.5,2,1], "Router", [1.25,2,1])
@@ -651,13 +675,13 @@ if __name__ == '__main__':
 
     
 
-    env.display_stats()
+    env.display_stats("itu_brick")
     
-    try:
-        env.preview_the_scene([480,480])
-        print("!!! PREVIEW DONE !!!")
-    except Exception as e:
-        print(e)
+    # try:
+    #     env.preview_the_scene([480,480])
+    #     print("!!! PREVIEW DONE !!!")
+    # except Exception as e:
+    #     print(e)
     
     
     
