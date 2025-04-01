@@ -216,7 +216,7 @@ class SionnaEnv:
 
         
 
-    def load_obj_from_file(self, obj_file_path, obj_name ,updateMaterial):
+    def load_obj_from_file(self, obj_file_path, obj_name, xml_file_path ,updateMaterial):
         
 
 
@@ -227,57 +227,130 @@ class SionnaEnv:
         # print("Materials : ", self.scene.radio_materials[updateMaterial])
         # print(f"{updateMaterial} in self.scene.radio_materials ", updateMaterial in self.scene.radio_materials)
         
-        set_mi_shape = mi.load_dict({
-            "type" : "obj",
-            "filename":obj_file_path,
-            "face_normals" : True,
-            "id": f"mesh-{obj_name}"
-        })
+        # set_mi_shape = mi.load_dict({
+        #     "type" : "obj",
+        #     "filename":obj_file_path,
+        #     "face_normals" : False,
+        #     "id": f"mesh-{obj_name}"
+        # })
         
     
-        put_Object = SceneObject(
-            name=obj_name,
-            object_id=self.new_object_id,
-            scene=self.scene,
-            mi_shape=set_mi_shape
-        )
-        self.new_object_id+=1
-        put_Object.radio_material = updateMaterial
+        # put_Object = SceneObject(
+        #     name=obj_name,
+        #     object_id=self.new_object_id,
+        #     scene=self.scene,
+        #     mi_shape=set_mi_shape
+        # )
+        # self.new_object_id+=1
+        # put_Object.radio_material = updateMaterial
 
-        #add object to scene
-        self.scene._scene_objects[obj_name] = put_Object
+        # #add object to scene
+        # self.scene._scene_objects[obj_name] = put_Object
 
 
-        #setup dict for new scene
-        temp_scene_dict = {"type": "scene",
-                            "integrator": {
-                                    "type": "path",
-                                        }}
+        #setup dict for new scene with materials like simple_room.xml file 
+        
         
         #temp_scene_dict[f"shape_{i}"] = obj._mi_shape
 
+        #test 
+        # print("Material : ", put_Object.radio_material._name)
+        # print("Type : ", put_Object.radio_material._dtype)
+        # print("conductivity : ", put_Object.radio_material.conductivity)
+        # exit()
+        #end test
+        
+
+
         #copy the old and new items
-        for i,obj in enumerate(self.scene._scene_objects.values()):
-            print("Material ", obj.radio_material) #test
-            temp_scene_dict[f"shape_{i}"] = obj._mi_shape
+        # for i,obj in enumerate(self.scene._scene_objects.values()):
+        #     print("Material ", obj.radio_material) #test
+        #     temp_scene_dict[f"shape_{i}"] = {
+        #         "type" : "obj",
+        #         "filename" : obj_file_path,
+        #         "bsdf" : {
+        #             "type" : "diffuse",
+        #             "reflectance" : {
+        #                 "type" : "rgb",
+        #                 "value" : [0.2, 0.25, 0.7], #need fix this later , create switch case for every material
+        #             },
+        #             "material" : obj.radio_material
+        #         },
+        #         "id" : obj._mi_shape.id()
+        #     }
 
-        self.scene._scene = mi.load_dict(temp_scene_dict)
+        #create temp xml file and fix 
+        print("---------- FILE ----------")
+        fixLines = []
+        f = open(xml_file_path, 'r')
+        for line in f:
+            # print(line)
+            fixLines.append(line)
+            #add maeterial 
+            if ("<!-- Materials -->" in line):
+                fixLines.append("\n")
+                fixLines.append(f'\t<bsdf type="twosided" id="mat-{updateMaterial}">\n')
+                fixLines.append('\t\t<bsdf type="diffuse">\n')
+                fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
+                fixLines.append('\t\t</bsdf>\n')
+                fixLines.append('\t</bsdf>\n')
+            
+            #add object
+            if ("<!-- Shapes -->" in line):
+                fixLines.append(f'\t<shape type="obj" id="mesh-{obj_name}">\n')
+                fixLines.append(f'\t\t<string name="filename" value="{obj_file_path}"/>\n')
+                fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
+                fixLines.append(f'\t\t<ref id="mat-{updateMaterial}" name="bsdf"/>\n')
+                fixLines.append(f'\t</shape>\n')
+        f.close()
 
-        self.scene._scene_params = mi.traverse(self.scene._scene)
+        # for line in fixLines:
+        #     print(line)
 
-        # Load the cameras
-        self.scene._load_cameras()
+        #test
+        get_path = filepath.split('/')[0:-1]
+        tempPath = ""
+        for el in get_path:
+            tempPath = tempPath + el + '/'
+        tempPath += 'temp.xml'
+        print(tempPath)
+        
+        
+        f = open(tempPath, 'w')
+        for line in fixLines:
+            f.write(line)
+        
+        f.close()
 
-        # Load the scene objects
-        self.scene._load_scene_objects()
+        #end test
 
-        # By default, no callable is used for radio materials
-        self.scene.radio_material_callable = None
+        
+        
 
-        # By default, no callable is used for scattering patterns
-        self.scene._scattering_pattern_callable = None
 
-        self.scene.scene_geometry_updated()
+
+        self.scene = load_scene(tempPath)
+        os.remove(tempPath)
+
+        # # self.scene._scene = mi.load_dict(temp_scene_dict)
+        # self.scene._scene = mi.load_file(tempPath)
+        # # os.remove(tempPath) #delete temp file
+
+        # self.scene._scene_params = mi.traverse(self.scene._scene)
+
+        # # Load the cameras
+        # self.scene._load_cameras()
+
+        # # Load the scene objects
+        # self.scene._load_scene_objects()
+
+        # # By default, no callable is used for radio materials
+        # self.scene.radio_material_callable = None
+
+        # # By default, no callable is used for scattering patterns
+        # self.scene._scattering_pattern_callable = None
+
+        # self.scene.scene_geometry_updated()
         
         
         
@@ -362,9 +435,9 @@ class SionnaEnv:
 
 
     def preview_the_scene(self, updateResolution):
-        cameraPos = [1,3,15]
+        cameraPos = [1,3,6]
         # lookAt = [3,0,2.5]
-        lookAt = [0,0,0]
+        lookAt = [4.5,2,1]
         set_camera = Camera(name="MainCamera", position=cameraPos)
         set_camera.look_at(lookAt)
         self.scene.add(set_camera)
@@ -448,7 +521,7 @@ if __name__ == '__main__':
     #setup enviroment and start simulation
     env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
-    env.load_obj_from_file(obj_file_path, "barrier-wall", "itu_plasterboard")
+    env.load_obj_from_file(obj_file_path, "barrier-wall", filepath, "itu_wood")
     
     env.store_simulation_info()
     env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
@@ -456,7 +529,7 @@ if __name__ == '__main__':
     env.calculate_channel_state()
     
     try:
-        env.preview_the_scene([480,480])
+        env.preview_the_scene([1280,720])
         print("!!! PREVIEW DONE !!!")
     except Exception as e:
         print(e)
