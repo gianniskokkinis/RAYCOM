@@ -57,6 +57,29 @@ from IPython.display import Image,display
 
 
 
+class sionnaObject:
+
+    """
+    This is a sionna Object which add it to scene 
+
+    """
+
+    def __init__(self, updateObjName, updateObjFilePath, updateMaterial):
+        self.objName = updateObjName
+        self.objFilePath = updateObjFilePath
+        self.material = updateMaterial
+    
+    def get_name(self):
+        return self.objName
+    
+    def get_objFilePath(self):
+        return self.objFilePath
+    
+    def get_material(self):
+        return self.material
+    
+
+
 
 class SionnaEnv:
 
@@ -224,70 +247,8 @@ class SionnaEnv:
 
         
 
-    def load_obj_from_file(self, obj_file_path, obj_name, xml_file_path ,updateMaterial):
+    def load_obj_from_file(self, sionnaObjects ,xml_file_path):
         
-
-
-        #FOR DEBUGGING
-        # print("--------------------SCENE OBJECTS----------------------- ")
-        # print(self.scene.objects.keys())
-        # print("------------------------------------------- ")
-        # print("Materials : ", self.scene.radio_materials[updateMaterial])
-        # print(f"{updateMaterial} in self.scene.radio_materials ", updateMaterial in self.scene.radio_materials)
-        
-        # set_mi_shape = mi.load_dict({
-        #     "type" : "obj",
-        #     "filename":obj_file_path,
-        #     "face_normals" : False,
-        #     "id": f"mesh-{obj_name}"
-        # })
-        
-    
-        # put_Object = SceneObject(
-        #     name=obj_name,
-        #     object_id=self.new_object_id,
-        #     scene=self.scene,
-        #     mi_shape=set_mi_shape
-        # )
-        # self.new_object_id+=1
-        # put_Object.radio_material = updateMaterial
-
-        # #add object to scene
-        # self.scene._scene_objects[obj_name] = put_Object
-
-
-        #setup dict for new scene with materials like simple_room.xml file 
-        
-        
-        #temp_scene_dict[f"shape_{i}"] = obj._mi_shape
-
-        #test 
-        # print("Material : ", put_Object.radio_material._name)
-        # print("Type : ", put_Object.radio_material._dtype)
-        # print("conductivity : ", put_Object.radio_material.conductivity)
-        # exit()
-        #end test
-        
-
-
-        #copy the old and new items
-        # for i,obj in enumerate(self.scene._scene_objects.values()):
-        #     print("Material ", obj.radio_material) #test
-        #     temp_scene_dict[f"shape_{i}"] = {
-        #         "type" : "obj",
-        #         "filename" : obj_file_path,
-        #         "bsdf" : {
-        #             "type" : "diffuse",
-        #             "reflectance" : {
-        #                 "type" : "rgb",
-        #                 "value" : [0.2, 0.25, 0.7], #need fix this later , create switch case for every material
-        #             },
-        #             "material" : obj.radio_material
-        #         },
-        #         "id" : obj._mi_shape.id()
-        #     }
-
-        #create temp xml file and fix 
         
         
         checkList = []
@@ -296,31 +257,61 @@ class SionnaEnv:
             checkList.append(obj._radio_material._name)
             print("Radio Material: ", obj._radio_material._name)
 
-        isMaterialOnOtherObj = updateMaterial in checkList    
+          
 
         print("---------- FILE ----------")
         fixLines = []
         f = open(xml_file_path, 'r')
         for line in f:
-            fixLines.append(line)
-            #add maeterial 
-            if ("<!-- Materials -->" in line):
-                if (not isMaterialOnOtherObj):
+
+            if ("</scene>" in line):
+                fixLines.append("<!-- Add New Items -->")
+                
+                #add materials
+                for sionnaObj in sionnaObjects:
+                    if (sionnaObj.get_material() not in checkList):
+                        checkList.append(sionnaObj.get_material())
+                        print("ADD NEW MATERIAL : ",sionnaObj.get_material())
+                        fixLines.append("\n")
+                        fixLines.append(f'\t<bsdf type="twosided" id="mat-{sionnaObj.get_material()}">\n')
+                        fixLines.append('\t\t<bsdf type="diffuse">\n')
+                        fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
+                        fixLines.append('\t\t</bsdf>\n')
+                        fixLines.append('\t</bsdf>\n')
+                
+                #add objects
+                for sionnaObj in sionnaObjects:
                     fixLines.append("\n")
-                    fixLines.append(f'\t<bsdf type="twosided" id="mat-{updateMaterial}">\n')
-                    fixLines.append('\t\t<bsdf type="diffuse">\n')
-                    fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
-                    fixLines.append('\t\t</bsdf>\n')
-                    fixLines.append('\t</bsdf>\n')
+                    fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
+                    fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
+                    fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
+                    fixLines.append(f'\t\t<ref id="mat-{sionnaObj.get_material()}" name="bsdf"/>\n')
+                    fixLines.append(f'\t</shape>\n')
+
+            fixLines.append(line)
+           
+            # #add material 
+            # if ("<!-- Materials -->" in line):
+            #     for sionnaObj in sionnaObjects:
+            #         if (sionnaObj.get_material() not in checkList):
+            #             checkList.append(sionnaObj.get_material())
+            #             print("ADD NEW MATERIAL : ",sionnaObj.get_material())
+            #             fixLines.append("\n")
+            #             fixLines.append(f'\t<bsdf type="twosided" id="mat-{sionnaObj.get_material()}">\n')
+            #             fixLines.append('\t\t<bsdf type="diffuse">\n')
+            #             fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
+            #             fixLines.append('\t\t</bsdf>\n')
+            #             fixLines.append('\t</bsdf>\n')
             
-            #add object
-            if ("<!-- Shapes -->" in line):
-                fixLines.append("\n")
-                fixLines.append(f'\t<shape type="obj" id="mesh-{obj_name}">\n')
-                fixLines.append(f'\t\t<string name="filename" value="{obj_file_path}"/>\n')
-                fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
-                fixLines.append(f'\t\t<ref id="mat-{updateMaterial}" name="bsdf"/>\n')
-                fixLines.append(f'\t</shape>\n')
+            # #add object
+            # if ("<!-- Shapes -->" in line):
+            #     for sionnaObj in sionnaObjects:
+            #         fixLines.append("\n")
+            #         fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
+            #         fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
+            #         fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
+            #         fixLines.append(f'\t\t<ref id="mat-{sionnaObj.get_material()}" name="bsdf"/>\n')
+            #         fixLines.append(f'\t</shape>\n')
         f.close()
 
         # for line in fixLines:
@@ -652,18 +643,34 @@ if __name__ == '__main__':
     #setup enviroment and start simulation
     env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
     
+
+    
+
+
+    objectsToAdd = []
+
+
+    
     #add objects 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
-    env.load_obj_from_file(obj_file_path, "barrier-wall", filepath, "itu_brick")
-    
+    sionObj = sionnaObject("barrier-wall",obj_file_path,"itu_brick")
+    objectsToAdd.append(sionObj)
+
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall2.obj"
-    env.load_obj_from_file(obj_file_path, "barrier-wall-2", filepath, "itu_brick")
-    
+    sionObj = sionnaObject("barrier-wall-2",obj_file_path,"itu_brick")
+    objectsToAdd.append(sionObj)
+
+
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall3.obj"
-    env.load_obj_from_file(obj_file_path, "barrier-wall-3", filepath, "itu_brick")
+    sionObj = sionnaObject("barrier-wall-3",obj_file_path,"itu_brick")
+    objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall4.obj"
-    env.load_obj_from_file(obj_file_path, "barrier-wall-4", filepath, "itu_brick")
+    sionObj = sionnaObject("barrier-wall-4",obj_file_path,"itu_brick")
+    objectsToAdd.append(sionObj)
+    
+    
+    env.load_obj_from_file(objectsToAdd, filepath)
         
 
 
