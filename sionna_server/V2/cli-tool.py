@@ -54,6 +54,7 @@ import matplotlib as mat
 from IPython.display import Image,display
 
 
+    
 
 
 
@@ -110,7 +111,7 @@ class SionnaEnv:
     def store_simulation_info(self):
 
         # SISO mode only
-        # Configure antenna array for all transmitters
+        # Configure antenna array for all transmitters 
         self.scene.tx_array = PlanarArray(num_rows=1,
                                      num_cols=1,
                                      vertical_spacing=0.5,
@@ -233,12 +234,12 @@ class SionnaEnv:
 
         print("Delay: ", lnk_delay)
         print("Loss: " , lnk_loss)
-        print("Frequencies ", self.frequencies.numpy())
-        print("Frequency Response : ", self.h_freq.numpy())
-        print("Impulse Response ")
-        print("amplitudes: ", self.a.numpy())
-        print("delays: ", self.tau.numpy())
-        print("PATHS: ", paths)
+        # print("Frequencies ", self.frequencies.numpy())
+        # print("Frequency Response : ", self.h_freq.numpy())
+        # print("Impulse Response ")
+        # print("amplitudes: ", self.a.numpy())
+        # print("delays: ", self.tau.numpy())
+        # print("PATHS: ", paths)
 
         
         # last_sim = simulation_time + (look_ahead - 1) * self.chan_coh_time_mode23
@@ -318,7 +319,7 @@ class SionnaEnv:
         #     print(line)
 
         
-        get_path = filepath.split('/')[0:-1]
+        get_path = xml_file_path.split('/')[0:-1]
         tempPath = ""
         for el in get_path:
             tempPath = tempPath + el + '/'
@@ -580,13 +581,13 @@ class SionnaEnv:
         
 
 
-    def preview_the_scene(self, updateResolution):
-        cameraPos = [0,3,6]
-        # lookAt = [3,0,2.5]
-        lookAt = [4.5,2,1]
+    def preview_the_scene(self, updateResolution, updateCameraPosition, updateLookAt,updateFIlename):
+        cameraPos = [updateCameraPosition[0], updateCameraPosition[1], updateCameraPosition[2]]
+        lookAt = [updateLookAt[0], updateLookAt[1], updateLookAt[2]]
         set_camera = Camera(name="MainCamera", position=cameraPos)
         set_camera.look_at(lookAt)
         self.scene.add(set_camera)
+
         
 
         #test
@@ -596,39 +597,21 @@ class SionnaEnv:
 
         self.scene.render_to_file(
             camera = set_camera,
-            filename="preview.jpg",
+            filename=updateFIlename,
             resolution=updateResolution,
             paths = self.paths,
-            show_paths = False,
+            show_paths = True,
             fov=60,
             show_devices=True,
             coverage_map = None,
             num_samples=1024
         )
         
-    
 
 
 
-    
-    
-if __name__ == '__main__': 
-    
 
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--single_run", help="Whether not to terminate after single run", action='store_true')
-    parser.add_argument("--rt_calc_diffraction", help="Calc diffraction in raytracing", action='store_true')
-    parser.add_argument("--rt_max_depth", type=int, default=6, help="Calc diffraction in raytracing")
-    parser.add_argument("--rt_max_parallel_links", type=int, default=4, help="Max no. of receivers")
-    parser.add_argument("--est_csi", help="Whether to estimate complex CSI per OFDM subcarrier", action='store_true')
-    parser.add_argument("--verbose", help="Whether to run in verbose mode", action='store_true')
-    args = parser.parse_args()
-
-    print("HELLO SIONNA!!!")
-
-    
-    
+def example1():
 
     #initialize scene
     filepath = "./../models/simple_room/simple_room.xml"
@@ -649,28 +632,29 @@ if __name__ == '__main__':
 
     objectsToAdd = []
 
-
+    
     
     #add objects 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
-    sionObj = sionnaObject("barrier-wall",obj_file_path,"itu_brick")
+    sionObj = sionnaObject("barrier-wall",obj_file_path,"itu_glass")
     objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall2.obj"
-    sionObj = sionnaObject("barrier-wall-2",obj_file_path,"itu_brick")
+    sionObj = sionnaObject("barrier-wall-2",obj_file_path,"itu_glass")
     objectsToAdd.append(sionObj)
 
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall3.obj"
-    sionObj = sionnaObject("barrier-wall-3",obj_file_path,"itu_brick")
+    sionObj = sionnaObject("barrier-wall-3",obj_file_path,"itu_glass")
     objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall4.obj"
-    sionObj = sionnaObject("barrier-wall-4",obj_file_path,"itu_brick")
+    sionObj = sionnaObject("barrier-wall-4",obj_file_path,"itu_glass")
     objectsToAdd.append(sionObj)
     
     
     env.load_obj_from_file(objectsToAdd, filepath)
+
         
 
 
@@ -682,15 +666,142 @@ if __name__ == '__main__':
 
     
 
-    env.display_stats("itu_brick")
+    env.display_stats("itu_glass")
     
     # try:
-    #     env.preview_the_scene([480,480])
-    #     print("!!! PREVIEW DONE !!!")
+    #     env.preview_the_scene([480,480],[-1.5,3,6],[4.5,2,1], "example1.jpg")
+    #     print("!!! RENDER DONE !!!")
     # except Exception as e:
     #     print(e)
     
     
+
+def example2():
+
+
+    cameraPositions = { 
+        "room1" : {
+            "cameraPos" : [-5,-6,4],
+            "lookAt" : [-2,1,3]
+        },
+
+        "room2" : { 
+            "cameraPos" : [2,6,10] ,
+            "lookAt" : [6,4,3]
+        }
+        
+    }
+
+    print("room1 -> cameraPos : ", cameraPositions["room1"]["cameraPos"])
+    print("room1 -> lookAt : ", cameraPositions["room1"]["lookAt"])
+
+    filepath = "./../models/futuristic_apartment/Futuristic_Apartment.xml"
+    scene = load_scene(filepath)
+    
+    frequency = 2.437e9
+    bandwith = 20e6
+    fft_size = 64
+
+    #setup enviroment and start simulation
+    env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
+    
+    env.store_simulation_info()
+    env.create_communication_link("Laptop", [6,4,3], "Router", [3,-7,3])
+    env.calculate_channel_state()
+    env.simulate_digital_communication(10)
+
+    
+
+    env.display_stats("itu_glass")
+
+    
+    
+    try:
+        resolution = [480,480]
+        cameraPos = cameraPositions["room2"]["cameraPos"]
+        lookAt = cameraPositions["room2"]["lookAt"]
+        env.preview_the_scene(resolution, cameraPos, lookAt, "example1.jpg")
+        print("!!! RENDER DONE !!!")
+    except Exception as e:
+        print(e)
+    
+
+def example3():
+
+    cameraPositions = { 
+        "place1" : {
+            "cameraPos" : [-34,-132,100],
+            "lookAt" : [-26,37,0]
+        },
+
+        "place2" : { 
+            "cameraPos" : [-78,-165,30] ,
+            "lookAt" : [-65,-143,0]
+        },
+
+        "place3" : { 
+            "cameraPos" : [37,-268,114] ,
+            "lookAt" : [-26,37,0]
+        }
+    }
+
+    filepath = "./../models/Ioannina/Ioannina.xml"
+    scene = load_scene(filepath)
+
+    frequency = 2.437e9
+    bandwith = 20e6
+    fft_size = 64
+
+    #setup enviroment and start simulation
+    env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
+
+    
+    env.store_simulation_info()
+    env.create_communication_link("Smartphone", [32,-93,30], "TelTower", [0,35,0])
+    env.calculate_channel_state()
+    env.simulate_digital_communication(10)
+
+    
+
+    env.display_stats("itu_glass")
+
+    try:
+        resolution = [1920,1080]
+        cameraPos = cameraPositions["place3"]["cameraPos"]
+        lookAt = cameraPositions["place3"]["lookAt"]
+        env.preview_the_scene(resolution, cameraPos, lookAt, "example3.jpg")
+        print("!!! RENDER DONE !!!")
+    except Exception as e:
+        print(e)
+        
+
+        
+    
+
+
+    
+    
+if __name__ == '__main__': 
+    
+
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--single_run", help="Whether not to terminate after single run", action='store_true')
+    parser.add_argument("--rt_calc_diffraction", help="Calc diffraction in raytracing", action='store_true')
+    parser.add_argument("--rt_max_depth", type=int, default=6, help="Calc diffraction in raytracing")
+    parser.add_argument("--rt_max_parallel_links", type=int, default=4, help="Max no. of receivers")
+    parser.add_argument("--est_csi", help="Whether to estimate complex CSI per OFDM subcarrier", action='store_true')
+    parser.add_argument("--verbose", help="Whether to run in verbose mode", action='store_true')
+    args = parser.parse_args()
+
+    print("HELLO SIONNA!!!")
+
+    example1()
+
+    # example2() 
+
+    # example3()   
+
     
     
     
