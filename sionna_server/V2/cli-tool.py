@@ -271,14 +271,32 @@ class SionnaEnv:
                 #add materials
                 for sionnaObj in sionnaObjects:
                     if (sionnaObj.get_material() not in checkList):
-                        checkList.append(sionnaObj.get_material())
-                        print("ADD NEW MATERIAL : ",sionnaObj.get_material())
-                        fixLines.append("\n")
-                        fixLines.append(f'\t<bsdf type="twosided" id="mat-{sionnaObj.get_material()}">\n')
-                        fixLines.append('\t\t<bsdf type="diffuse">\n')
-                        fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
-                        fixLines.append('\t\t</bsdf>\n')
-                        fixLines.append('\t</bsdf>\n')
+                        #test
+                        print("self.scene.radio_materials : ", list(self.scene.radio_materials.keys()))    
+                        print(f"{sionnaObj.get_material()} in {list(self.scene.radio_materials.keys())} : {sionnaObj.get_material() in list(self.scene.radio_materials.keys())}")
+                        #end test
+        
+                        #check here if itu material from sionna list
+                        if (sionnaObj.get_material() in list(self.scene.radio_materials.keys())):
+                            checkList.append(sionnaObj.get_material())
+                            print("ADD NEW MATERIAL : ",sionnaObj.get_material())
+                            fixLines.append("\n")
+                            fixLines.append(f'\t<bsdf type="twosided" id="mat-{sionnaObj.get_material()}">\n')
+                            fixLines.append('\t\t<bsdf type="diffuse">\n')
+                            fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
+                            fixLines.append('\t\t</bsdf>\n')
+                            fixLines.append('\t</bsdf>\n')
+                            
+                        
+                        else:
+                            #create new material and set parameters
+                            print("Not material in itu list ")
+                            exit()
+                    
+
+                        #add radio material 
+                        
+
                 
                 #add objects
                 for sionnaObj in sionnaObjects:
@@ -290,29 +308,6 @@ class SionnaEnv:
                     fixLines.append(f'\t</shape>\n')
 
             fixLines.append(line)
-           
-            # #add material 
-            # if ("<!-- Materials -->" in line):
-            #     for sionnaObj in sionnaObjects:
-            #         if (sionnaObj.get_material() not in checkList):
-            #             checkList.append(sionnaObj.get_material())
-            #             print("ADD NEW MATERIAL : ",sionnaObj.get_material())
-            #             fixLines.append("\n")
-            #             fixLines.append(f'\t<bsdf type="twosided" id="mat-{sionnaObj.get_material()}">\n')
-            #             fixLines.append('\t\t<bsdf type="diffuse">\n')
-            #             fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
-            #             fixLines.append('\t\t</bsdf>\n')
-            #             fixLines.append('\t</bsdf>\n')
-            
-            # #add object
-            # if ("<!-- Shapes -->" in line):
-            #     for sionnaObj in sionnaObjects:
-            #         fixLines.append("\n")
-            #         fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
-            #         fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
-            #         fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
-            #         fixLines.append(f'\t\t<ref id="mat-{sionnaObj.get_material()}" name="bsdf"/>\n')
-            #         fixLines.append(f'\t</shape>\n')
         f.close()
 
         # for line in fixLines:
@@ -341,7 +336,19 @@ class SionnaEnv:
 
 
         self.scene = load_scene(tempPath)
+        self.scene.frequency = self.frequency
+        self.scene.channel_bw = self.channel_bw
+        self.scene.fft_size = self.fft_size
+
+        
         os.remove(tempPath)
+
+
+        
+            
+            
+
+
 
         # # self.scene._scene = mi.load_dict(temp_scene_dict)
         # self.scene._scene = mi.load_file(tempPath)
@@ -636,20 +643,20 @@ def example1():
     
     #add objects 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
-    sionObj = sionnaObject("barrier-wall",obj_file_path,"itu_glass")
+    sionObj = sionnaObject("barrier-wall",obj_file_path,"itu_brick")
     objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall2.obj"
-    sionObj = sionnaObject("barrier-wall-2",obj_file_path,"itu_glass")
+    sionObj = sionnaObject("barrier-wall-2",obj_file_path,"itu_brick")
     objectsToAdd.append(sionObj)
 
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall3.obj"
-    sionObj = sionnaObject("barrier-wall-3",obj_file_path,"itu_glass")
+    sionObj = sionnaObject("barrier-wall-3",obj_file_path,"itu_brick")
     objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall4.obj"
-    sionObj = sionnaObject("barrier-wall-4",obj_file_path,"itu_glass")
+    sionObj = sionnaObject("barrier-wall-4",obj_file_path,"itu_brick")
     objectsToAdd.append(sionObj)
     
     
@@ -666,7 +673,7 @@ def example1():
 
     
 
-    env.display_stats("itu_glass")
+    env.display_stats("itu_brick")
     
     # try:
     #     env.preview_the_scene([480,480],[-1.5,3,6],[4.5,2,1], "example1.jpg")
