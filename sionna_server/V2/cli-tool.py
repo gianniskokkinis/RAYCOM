@@ -48,6 +48,7 @@ from sionna.rt.antenna import iso_pattern
 from sionna.rt.scene_object import SceneObject
 from sionna.utils.misc import *
 from sionna.utils.metrics import *
+from sionna.utils.plotting import *
 from sionna.mapping import *
 import matplotlib.pyplot as plt
 import matplotlib as mat
@@ -78,6 +79,9 @@ class sionnaObject:
     
     def get_material(self):
         return self.material
+
+    def create_custom_material(self, materialName):
+        pass
     
 
 
@@ -105,6 +109,7 @@ class SionnaEnv:
         self.scene.fft_size = updateFft_size
         self.new_object_id=1 #this is about new objects
         self.paths=[]
+        
 
 
 
@@ -381,56 +386,90 @@ class SionnaEnv:
         # print("SHAPES : ", self.scene._scene.shapes)
         # print("OBJECTS : ", self.scene._scene_objects)
         # print("----------------------------------------")
+    
+        
         
 
     def simulate_digital_communication(self, ebno_db):
+
+        self.snr_values = []
+        #initialize snr 
+        for i in range(1,31):
+            self.snr_values.append(i)
         
-        
+        print("self.snr_values :",self.snr_values)
+
         #generate random bits 
         self.binary_source = BinarySource()
 
-
+        #modulations 
         self.modulations = {
             "pam" : {
                 "type" : "pam" , 
-                "num_bits" : 1
+                "num_bits" : 1,
+                "ber" : [],
+                "bler" : [],
+                "ser" : []
             },
 
             "4-pam" : {
                 "type" : "pam" ,
-                "num_bits" : 2
+                "num_bits" : 2,
+                "ber" : [],
+                "bler" : [],
+                "ser" : []
             },
             
             "16-qam" : {
                 "type" : "qam",
-                "num_bits" : 4
+                "num_bits" : 4,
+                "ber" : [],
+                "bler" : [],
+                "ser" : []
             },
 
             "64-qam" : {
                 "type" : "qam",
-                "num_bits" : 6
+                "num_bits" : 6,
+                "ber" : [],
+                "bler" : [],
+                "ser" : []
+                
             }            
         }
-
         
-
+        #get frequency from the channel
         h_freq = self.h_freq.numpy()
 
         #test all modulations
         self.results = {}
-        for modulation, modulation_params in self.modulations.items():
+
+        #initialize results for ser
+        
+        
+
+        
+
+
+
+        #function which is gonna called via PlotBer.simulate(...)
+        def simulation(batch_size,ebno_db):
+
             
-            num_bits = self.fft_size * modulation_params['num_bits']
+            
+
             bits = self.binary_source([1, num_bits])
-            
+
+
             #modulation
             if (modulation_params["type"] == "pam"):
                 mapper = Mapper(constellation_type="pam", num_bits_per_symbol=modulation_params["num_bits"])
             else:
                 mapper = Mapper(constellation_type="qam", num_bits_per_symbol=modulation_params["num_bits"])
+            
             symbols = mapper(bits)
 
-            #Using channel to sends
+            #channel effects
             symbols_ofdm = tf.signal.fft(tf.cast(symbols, tf.complex64))
             symbols_channel = symbols_ofdm * h_freq
             awgn_channel = AWGN()
@@ -443,19 +482,65 @@ class SionnaEnv:
                 demapper = Demapper(demapping_method="app", constellation_type="pam", num_bits_per_symbol=modulation_params["num_bits"])
             else:
                 demapper = Demapper(demapping_method="app", constellation_type="qam", num_bits_per_symbol=modulation_params["num_bits"])
-            
+                    
             llr = demapper([tf.expand_dims(y_time, axis=0), no])
             bits_hat = tf.cast(llr>0, tf.float32)
 
-        
-            #calculate Bit Error Rate 
-            ber = compute_ber(bits, bits_hat)
+                
+            #calculate metrics 
+            ser = compute_ser(symbols, y_time) #calculate Symbol Error Rate
 
-            self.results[modulation] = {
-                "ber" : ber.numpy(),
-                "constellation" : symbols.numpy(),
-                "received" : y_time.numpy()
-            }
+
+            #calculate
+            # modulation_params["ser"] = ser
+            
+            # print("")
+            # print("")
+            
+            return bits,bits_hat
+
+        
+        
+
+        
+
+        
+
+        
+        plot_ber = {}
+        for modulation in self.modulations:
+            plot_ber[modulation] = PlotBER(title=f"Bit/Block Error Rate ({modulation})")
+
+        #for every modulation run simulation
+        for modulation, modulation_params in self.modulations.items():
+
+
+            num_bits = self.fft_size * modulation_params['num_bits']
+
+            for snr in self.snr_values:
+                ber, bler = plot_ber[modulation].simulate(
+                    mc_fun=simulation,
+                    ebno_dbs=[snr], #maybe fix here, SNR values depents from modulation 
+                    batch_size=1000, #change with the parameter later
+                    max_mc_iter=10,
+                    legend = f"{modulation} at {snr} dB",
+                    add_ber=True,
+                    add_bler=True
+                )
+
+                print("ber: ",ber)
+                print("bler: ",bler)
+                modulation_params["ber"].append(ber)
+                modulation_params["bler"].append(bler)
+        
+
+            
+        
+            
+
+                
+
+            
 
         
 
@@ -515,67 +600,180 @@ class SionnaEnv:
         #plot Bit Error Rate 
         plt.figure(figsize=(15,10))
         plt.title("Bit Error Rate")
+
         
-        #display BER    
-        plt.subplot(2,4,1)    
-        for modulation, result in self.results.items():
-            plt.bar(modulation, result["ber"], alpha=0.6)
-        plt.title("Bit Error Rate (BER)")
-        plt.yscale("log")
+        
+
+        #display PAM BER 
+        plt.subplot(2,4,1)
+        ber_display = self.modulations["pam"]["ber"]
+        plt.semilogy(self.snr_values, ber_display, "-o")
+        plt.title("PAM modulation BER")
+        plt.xlabel("Eb/No (dB)")
+        plt.ylabel("BER")
         plt.grid(True)
 
-        #display (4-PAM) 
+        #display PAM BLER
+        plt.subplot(2,4,2)
+        ber_display = self.modulations["pam"]["bler"]
+        plt.semilogy(self.snr_values, ber_display, "-o")
+        plt.title("PAM modulation BLER")
+        plt.xlabel("Eb/No (dB)")
+        plt.ylabel("BLER")
+        plt.grid(True)
 
-        # Constellation
+
+        #display 4-PAM BER 
         plt.subplot(2,4,3)
-        symbols = self.results["4-pam"]["constellation"]
-        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Modulated Symbols (4-pam)")
+        ber_display = self.modulations["4-pam"]["ber"]
+        plt.semilogy(self.snr_values, ber_display, "-o")
+        plt.title("4-PAM modulation BER")
+        plt.xlabel("Eb/No (dB)")
+        plt.ylabel("BER")
         plt.grid(True)
 
-        # Receiver
+        #display 4-PAM BLER
         plt.subplot(2,4,4)
-        symbols = self.results["4-pam"]["received"]
-        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Demodulated Symbols (4-pam)")
+        ber_display = self.modulations["4-pam"]["bler"]
+        plt.semilogy(self.snr_values, ber_display, "-o")
+        plt.title("4-PAM modulation BLER")
+        plt.xlabel("Eb/No (dB)")
+        plt.ylabel("BLER")
         plt.grid(True)
 
 
-        #display (16-QAM)
 
-        # Constellation
+        #display 16-QAM BER 
         plt.subplot(2,4,5)
-        symbols = self.results["16-qam"]["constellation"]
-        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Modulated Symbols (16-pam)")
+        ber_display = self.modulations["16-qam"]["ber"]
+        plt.semilogy(self.snr_values, ber_display, "-o")
+        plt.title("16-QAM modulation BER")
+        plt.xlabel("Eb/No (dB)")
+        plt.ylabel("BER")
         plt.grid(True)
 
-        # Receiver
+        #display 16-QAM BLER
         plt.subplot(2,4,6)
-        symbols = self.results["16-qam"]["received"]
-        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Demodulated Symbols (16-pam)")
+        ber_display = self.modulations["16-qam"]["bler"]
+        plt.semilogy(self.snr_values, ber_display, "-o")
+        plt.title("16-QAM modulation BLER")
+        plt.xlabel("Eb/No (dB)")
+        plt.ylabel("BLER")
         plt.grid(True)
 
 
-        #display (64-QAM)
 
-        # Constellation
+
+        #display 64-QAM BER 
         plt.subplot(2,4,7)
-        symbols = self.results["64-qam"]["constellation"]
-        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Modulated Symbols (64-pam)")
+        ber_display = self.modulations["64-qam"]["ber"]
+        plt.semilogy(self.snr_values, ber_display, "-o")
+        plt.title("64-QAM modulation BER")
+        plt.xlabel("Eb/No (dB)")
+        plt.ylabel("BER")
         plt.grid(True)
 
-        # Receiver
+        #display 64-QAM BLER
         plt.subplot(2,4,8)
-        symbols = self.results["64-qam"]["received"]
-        plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        plt.title("Demodulated Symbols (64-pam)")
+        ber_display = self.modulations["64-qam"]["bler"]
+        plt.semilogy(self.snr_values, ber_display, "-o")
+        plt.title("64-QAM modulation BLER")
+        plt.xlabel("Eb/No (dB)")
+        plt.ylabel("BLER")
         plt.grid(True)
+
+
+
+
+        
 
         plt.tight_layout()
         plt.show()
+        
+        
+        
+        
+        # #display BER    
+        # plt.subplot(2,4,1)    
+        # for modulation, result in self.results.items():
+        #     # plt.bar(modulation, result["ber"], alpha=0.6)
+        #     result["plot_ber"].plot(label=modulation)
+        # plt.title("Bit Error Rate (BER)")
+        # # plt.yscale("log")
+        # plt.grid(True)
+        # plt.legend()
+
+
+        # #display SER
+        # plt.subplot(2,4,2)
+        # for modulation, result in self.results.items():
+        #     plt.bar(modulation, result["ser"])
+        # plt.title("Symbol Error Rate (SER)")
+        # plt.grid(True)
+
+        # #display BLER
+        # plt.subplot(2,4,2)
+        # for modulation,result in self.results.items():
+        #     plt.bar(modulation, result["bler"])
+        # plt.title("Block Error Rate (BLER)")
+        # plt.grid(True)
+
+        
+
+
+        # #display (4-PAM) 
+
+        # # Sender Constellation
+        # plt.subplot(2,4,3)
+        # symbols = self.results["4-pam"]["constellation"]
+        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        # plt.title("Modulated Symbols (4-pam)")
+        # plt.grid(True)
+
+
+        # # Receiver Constellation
+        # plt.subplot(2,4,4)
+        # symbols = self.results["4-pam"]["received"]
+        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        # plt.title("Demodulated Symbols (4-pam)")
+        # plt.grid(True)
+
+
+        # #display (16-QAM)
+
+        # # Sender Constellation
+        # plt.subplot(2,4,5)
+        # symbols = self.results["16-qam"]["constellation"]
+        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        # plt.title("Modulated Symbols (16-pam)")
+        # plt.grid(True)
+
+        # # Receiver Constellation
+        # plt.subplot(2,4,6)
+        # symbols = self.results["16-qam"]["received"]
+        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        # plt.title("Demodulated Symbols (16-pam)")
+        # plt.grid(True)
+
+
+        # #display (64-QAM)
+
+        # # Sender Constellation
+        # plt.subplot(2,4,7)
+        # symbols = self.results["64-qam"]["constellation"]
+        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        # plt.title("Modulated Symbols (64-pam)")
+        # plt.grid(True)
+
+        # # Receiver Constellation
+        # plt.subplot(2,4,8)
+        # symbols = self.results["64-qam"]["received"]
+        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
+        # plt.title("Demodulated Symbols (64-pam)")
+        # plt.grid(True)
+
+        # plt.tight_layout()
+        # plt.show()
 
 
 
