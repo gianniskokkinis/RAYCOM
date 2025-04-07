@@ -857,11 +857,19 @@ class SionnaEnv:
 def example1():
 
 
-    # materialsToCheck = {
-        
+    materialsToCheck = {
+        "mirror" : {
+            "material_name" : "mirror",
+            "material_relative_permittivity" : 1.0,
+            "material_conductivity" : 3.8e7,
+            "material_scattering_coefficient" : 0.0,
+            "material_xpd_coefficient" : 0.0,
+            "material_scattering_pattern" : None,
+            "material_frequency_update_callback" : None
+        }      
        
 
-    # }
+    }
 
     #initialize scene
     filepath = "./../models/simple_room/simple_room.xml"
@@ -889,13 +897,13 @@ def example1():
     sionObj = sionnaObject("barrier-wall",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name="mirror",
-        material_relative_permittivity=1.0,
-        material_conductivity=3.8e7,
-        material_scattering_coefficient=0.0,
-        material_xpd_coefficient=0.0,
-        material_scattering_pattern=None,
-        material_frequency_update_callback=None,
+        material_name=materialsToCheck["mirror"]["material_name"],
+        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"]
     )
 
     objectsToAdd.append(sionObj)
@@ -904,14 +912,15 @@ def example1():
     sionObj = sionnaObject("barrier-wall-2",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name="mirror",
-        material_relative_permittivity=1.0,
-        material_conductivity=3.8e7,
-        material_scattering_coefficient=0.0,
-        material_xpd_coefficient=0.0,
-        material_scattering_pattern=None,
-        material_frequency_update_callback=None,
+        material_name=materialsToCheck["mirror"]["material_name"],
+        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"]
     )
+
 
 
     objectsToAdd.append(sionObj)
@@ -921,14 +930,15 @@ def example1():
     sionObj = sionnaObject("barrier-wall-3",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name="mirror",
-        material_relative_permittivity=1.0,
-        material_conductivity=3.8e7,
-        material_scattering_coefficient=0.0,
-        material_xpd_coefficient=0.0,
-        material_scattering_pattern=None,
-        material_frequency_update_callback=None,
+        material_name=materialsToCheck["mirror"]["material_name"],
+        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"]
     )
+
 
 
     objectsToAdd.append(sionObj)
@@ -937,14 +947,15 @@ def example1():
     sionObj = sionnaObject("barrier-wall-4",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name="mirror",
-        material_relative_permittivity=1.0,
-        material_conductivity=3.8e7,
-        material_scattering_coefficient=0.0,
-        material_xpd_coefficient=0.0,
-        material_scattering_pattern=None,
-        material_frequency_update_callback=None,
+        material_name=materialsToCheck["mirror"]["material_name"],
+        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"]
     )
+
 
 
 
