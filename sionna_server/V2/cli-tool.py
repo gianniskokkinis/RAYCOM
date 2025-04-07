@@ -46,6 +46,7 @@ from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
 from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies, AWGN
 from sionna.rt.antenna import iso_pattern
 from sionna.rt.scene_object import SceneObject
+from sionna.rt.radio_material import RadioMaterial
 from sionna.utils.misc import *
 from sionna.utils.metrics import *
 from sionna.utils.plotting import *
@@ -66,10 +67,11 @@ class sionnaObject:
 
     """
 
-    def __init__(self, updateObjName, updateObjFilePath, updateMaterial):
+    def __init__(self, updateObjName, updateObjFilePath):
         self.objName = updateObjName
         self.objFilePath = updateObjFilePath
-        self.material = updateMaterial
+        self.hasCustomMaterial = False
+        
     
     def get_name(self):
         return self.objName
@@ -80,9 +82,30 @@ class sionnaObject:
     def get_material(self):
         return self.material
 
-    def create_custom_material(self, materialName):
-        pass
+    def set_sionna_material(self, updateMaterialName):
+        self.material = updateMaterialName
+
+    def create_custom_material(self, material_name, 
+                                material_relative_permittivity, 
+                                material_conductivity,
+                                material_scattering_coefficient,
+                                material_xpd_coefficient,
+                                material_scattering_pattern,
+                                material_frequency_update_callback
+                            ):
+        self.hasCustomMaterial = True
+        #create material and set it to sionnaObj
+        self.material = RadioMaterial( name = material_name,
+                                        relative_permittivity = material_relative_permittivity,
+                                        conductivity = material_conductivity,
+                                        scattering_coefficient = material_scattering_coefficient,
+                                        xpd_coefficient = material_xpd_coefficient,
+                                        scattering_pattern = material_scattering_pattern,
+                                        frequency_update_callback = material_frequency_update_callback,
+                                    )
     
+    def get_custom_material_name(self):
+        return self.material._name
 
 
 
@@ -267,6 +290,7 @@ class SionnaEnv:
 
         print("---------- FILE ----------")
         fixLines = []
+        sionnaObjectsWithCustomMaterials = []
         f = open(xml_file_path, 'r')
         for line in f:
 
@@ -276,11 +300,6 @@ class SionnaEnv:
                 #add materials
                 for sionnaObj in sionnaObjects:
                     if (sionnaObj.get_material() not in checkList):
-                        #test
-                        print("self.scene.radio_materials : ", list(self.scene.radio_materials.keys()))    
-                        print(f"{sionnaObj.get_material()} in {list(self.scene.radio_materials.keys())} : {sionnaObj.get_material() in list(self.scene.radio_materials.keys())}")
-                        #end test
-        
                         #check here if itu material from sionna list
                         if (sionnaObj.get_material() in list(self.scene.radio_materials.keys())):
                             checkList.append(sionnaObj.get_material())
@@ -291,26 +310,32 @@ class SionnaEnv:
                             fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
                             fixLines.append('\t\t</bsdf>\n')
                             fixLines.append('\t</bsdf>\n')
-                            
-                        
-                        else:
-                            #create new material and set parameters
-                            print("Not material in itu list ")
-                            exit()
                     
 
-                        #add radio material 
+                       
                         
 
                 
                 #add objects
                 for sionnaObj in sionnaObjects:
-                    fixLines.append("\n")
-                    fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
-                    fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
-                    fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
-                    fixLines.append(f'\t\t<ref id="mat-{sionnaObj.get_material()}" name="bsdf"/>\n')
-                    fixLines.append(f'\t</shape>\n')
+                    if (sionnaObj.hasCustomMaterial == False):
+                        #ITU-Material
+                        fixLines.append("\n")
+                        fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
+                        fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
+                        fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
+                        fixLines.append(f'\t\t<ref id="mat-{sionnaObj.get_material()}" name="bsdf"/>\n')
+                        fixLines.append(f'\t</shape>\n')
+                    else:
+                        #CUstom material
+                        sionnaObjectsWithCustomMaterials.append(sionnaObj)
+                        fixLines.append("\n")
+                        fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
+                        fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
+                        fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
+                        fixLines.append(f'\t</shape>\n')
+                        
+                        
 
             fixLines.append(line)
         f.close()
@@ -348,6 +373,19 @@ class SionnaEnv:
         
         os.remove(tempPath)
 
+        #assign the material from sionna custom objects materials 
+        for customMatObj in sionnaObjectsWithCustomMaterials:
+
+            if (customMatObj.get_custom_material_name() not in self.scene.radio_materials.keys()):
+                #need to set the radio_material
+                self.scene.get(customMatObj.get_name()).radio_material=customMatObj.material
+            else:
+                #just perform the name of the material
+                self.scene.get(customMatObj.get_name()).radio_material=customMatObj.get_custom_material_name()
+        
+
+            
+        
 
         
             
@@ -818,6 +856,13 @@ class SionnaEnv:
 
 def example1():
 
+
+    # materialsToCheck = {
+        
+       
+
+    # }
+
     #initialize scene
     filepath = "./../models/simple_room/simple_room.xml"
     scene = load_scene(filepath)
@@ -841,20 +886,68 @@ def example1():
     
     #add objects 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
-    sionObj = sionnaObject("barrier-wall",obj_file_path,"itu_brick")
+    sionObj = sionnaObject("barrier-wall",obj_file_path)
+    # sionObj.set_sionna_material("itu_brick")
+    sionObj.create_custom_material(
+        material_name="mirror",
+        material_relative_permittivity=1.0,
+        material_conductivity=3.8e7,
+        material_scattering_coefficient=0.0,
+        material_xpd_coefficient=0.0,
+        material_scattering_pattern=None,
+        material_frequency_update_callback=None,
+    )
+
     objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall2.obj"
-    sionObj = sionnaObject("barrier-wall-2",obj_file_path,"itu_brick")
+    sionObj = sionnaObject("barrier-wall-2",obj_file_path)
+    # sionObj.set_sionna_material("itu_brick")
+    sionObj.create_custom_material(
+        material_name="mirror",
+        material_relative_permittivity=1.0,
+        material_conductivity=3.8e7,
+        material_scattering_coefficient=0.0,
+        material_xpd_coefficient=0.0,
+        material_scattering_pattern=None,
+        material_frequency_update_callback=None,
+    )
+
+
     objectsToAdd.append(sionObj)
 
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall3.obj"
-    sionObj = sionnaObject("barrier-wall-3",obj_file_path,"itu_brick")
+    sionObj = sionnaObject("barrier-wall-3",obj_file_path)
+    # sionObj.set_sionna_material("itu_brick")
+    sionObj.create_custom_material(
+        material_name="mirror",
+        material_relative_permittivity=1.0,
+        material_conductivity=3.8e7,
+        material_scattering_coefficient=0.0,
+        material_xpd_coefficient=0.0,
+        material_scattering_pattern=None,
+        material_frequency_update_callback=None,
+    )
+
+
     objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall4.obj"
-    sionObj = sionnaObject("barrier-wall-4",obj_file_path,"itu_brick")
+    sionObj = sionnaObject("barrier-wall-4",obj_file_path)
+    # sionObj.set_sionna_material("itu_brick")
+    sionObj.create_custom_material(
+        material_name="mirror",
+        material_relative_permittivity=1.0,
+        material_conductivity=3.8e7,
+        material_scattering_coefficient=0.0,
+        material_xpd_coefficient=0.0,
+        material_scattering_pattern=None,
+        material_frequency_update_callback=None,
+    )
+
+
+
     objectsToAdd.append(sionObj)
     
     
