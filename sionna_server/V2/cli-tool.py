@@ -282,9 +282,11 @@ class SionnaEnv:
         
         checkList = []
 
-        for obj in self.scene._scene_objects.values():
-            checkList.append(obj._radio_material._name)
-            print("Radio Material: ", obj._radio_material._name)
+        # for obj in self.scene._scene_objects.values():
+        #     checkList.append(obj._radio_material._name)
+        #     print("obj_name: ", obj._name)
+        #     print("Radio Material: ", obj._radio_material._name)
+        
 
           
 
@@ -431,6 +433,7 @@ class SionnaEnv:
     def simulate_digital_communication(self, ebno_db):
 
         self.snr_values = []
+        
         #initialize snr 
         for i in range(1,31):
             self.snr_values.append(i)
@@ -447,7 +450,9 @@ class SionnaEnv:
                 "num_bits" : 1,
                 "ber" : [],
                 "bler" : [],
-                "ser" : []
+                "ser" : [],
+                "bit_errors" : [],
+                "block_errors" : []
             },
 
             "4-pam" : {
@@ -455,7 +460,9 @@ class SionnaEnv:
                 "num_bits" : 2,
                 "ber" : [],
                 "bler" : [],
-                "ser" : []
+                "ser" : [],
+                "bit_errors" : [],
+                "block_errors" : []
             },
             
             "16-qam" : {
@@ -463,7 +470,9 @@ class SionnaEnv:
                 "num_bits" : 4,
                 "ber" : [],
                 "bler" : [],
-                "ser" : []
+                "ser" : [],
+                "bit_errors" : [],
+                "block_errors" : []
             },
 
             "64-qam" : {
@@ -471,8 +480,9 @@ class SionnaEnv:
                 "num_bits" : 6,
                 "ber" : [],
                 "bler" : [],
-                "ser" : []
-                
+                "ser" : [],
+                "bit_errors" : [],
+                "block_errors" : []
             }            
         }
         
@@ -485,7 +495,9 @@ class SionnaEnv:
         #initialize results for ser
         
         
-
+        temp_ser_results = []
+        temp_bit_errors_results = []
+        temp_block_errors_results = []
         
 
 
@@ -528,10 +540,18 @@ class SionnaEnv:
             #calculate metrics 
             ser = compute_ser(symbols, y_time) #calculate Symbol Error Rate
 
+            #calculate Bitwise Mutual Information 
+            bit_errors = count_errors(bits, bits_hat)
+            block_errors = count_block_errors(bits, bits_hat)
 
             #calculate
-            # modulation_params["ser"] = ser
-            
+            temp_ser_results.append(np.mean(ser))
+            temp_bit_errors_results.append(np.mean(bit_errors))
+            temp_block_errors_results.append(np.mean(block_errors))
+
+
+
+
             # print("")
             # print("")
             
@@ -566,10 +586,26 @@ class SionnaEnv:
                     add_bler=True
                 )
 
-                print("ber: ",ber)
-                print("bler: ",bler)
+                # print("ber: ",ber)
+                # print("bler: ",bler)
                 modulation_params["ber"].append(ber)
                 modulation_params["bler"].append(bler)
+                modulation_params["ser"].append(np.mean(temp_ser_results))
+                modulation_params["bit_errors"].append(np.mean(temp_bit_errors_results))
+                modulation_params["block_errors"].append(np.mean(temp_block_errors_results))
+               
+                #clear tables for next experiment
+                temp_ser_results = []
+                temp_bit_errors_results = []
+                temp_block_errors_results = []
+                
+                
+            
+            #test
+            # print("sers: ", modulation_params["ser"])
+            # print("bit_errors: ", modulation_params["bit_errors"])
+            # print("block_errors: ", modulation_params["block_errors"])
+            # time.sleep(5)
         
 
             
@@ -590,13 +626,12 @@ class SionnaEnv:
 
 
     
-    def display_stats(self, material_display):
+    def display_stats(self):
         
         mat.use("Qt5Agg")
 
         plt.figure(figsize=(15,10))
-        
-        plt.title(material_display)
+        plt.title("Channel Informations")
         
         #display the frequency response Magnitude
         plt.subplot(2,2,1)
@@ -630,17 +665,34 @@ class SionnaEnv:
         plt.grid(True)
         
 
-        
+        #add legend box with objects and materials 
+        displayList = []
+        for obj in self.scene._scene_objects.values():
+            displayList.append(f'{obj._name} : {obj._radio_material._name}')
+        plt.subplot(2,2,4)
+        plt.axis("off")
+        info_text = "\n".join(displayList)
+        plt.text(
+            0.5,
+            0.5,
+            info_text,
+            ha="center",
+            va="center",
+            fontsize=10,
+            bbox=dict(
+                facecolor = "white",
+                edgecolor = "black",
+                boxstyle = "round,pad=0.5",
+                alpha=0.8
+            )
+        )
 
         plt.tight_layout()
         plt.show()
 
-        #plot Bit Error Rate 
+        #plot errors ration
         plt.figure(figsize=(15,10))
-        plt.title("Bit Error Rate")
-
-        
-        
+        plt.title("Error Ration")
 
         #display PAM BER 
         plt.subplot(2,4,1)
@@ -659,6 +711,9 @@ class SionnaEnv:
         plt.xlabel("Eb/No (dB)")
         plt.ylabel("BLER")
         plt.grid(True)
+
+        #display PAM 
+
 
 
         #display 4-PAM BER 
@@ -720,98 +775,63 @@ class SionnaEnv:
         plt.ylabel("BLER")
         plt.grid(True)
 
-
-
-
+        plt.tight_layout()
+        plt.show()
         
 
+
+        #plot ser
+        plt.figure(figsize=(15,10))
+        plt.title("Symbol Error Rate")
+        pos = 1
+        for mod in self.modulations.keys():
+            plt.subplot(2,4,pos)
+            display_values = self.modulations[mod]["ser"]
+            plt.semilogy(self.snr_values, display_values, "-o")
+            plt.title(f"{mod} modulation SER")
+            plt.xlabel("Eb/No (dB)")
+            plt.ylabel("SER")
+            plt.grid(True)
+            pos+=1
+        plt.tight_layout()
+        plt.show()
+
+
+        #plot Bits Error 
+        plt.figure(figsize=(15,10))
+        plt.title("Bits Error")
+        pos = 1
+        for mod in self.modulations.keys():
+            plt.subplot(2,4,pos)
+            display_values = self.modulations[mod]["bit_errors"]
+            plt.semilogy(self.snr_values, display_values, "-o")
+            plt.title(f"{mod} modulation Bits Error")
+            plt.xlabel("Eb/No (dB)")
+            plt.ylabel("Bits Error")
+            plt.grid(True)
+            pos+=1
+        plt.tight_layout()
+        plt.show()
+
+        
+        #plot Block Error 
+        plt.figure(figsize=(15,10))
+        plt.title("Block Error")
+        pos = 1
+        for mod in self.modulations.keys():
+            plt.subplot(2,4,pos)
+            display_values = self.modulations[mod]["block_errors"]
+            plt.semilogy(self.snr_values, display_values, "-o")
+            plt.title(f"{mod} modulation Block Error")
+            plt.xlabel("Eb/No (dB)")
+            plt.ylabel("Block Error")
+            plt.grid(True)
+            pos+=1
         plt.tight_layout()
         plt.show()
         
         
         
-        
-        # #display BER    
-        # plt.subplot(2,4,1)    
-        # for modulation, result in self.results.items():
-        #     # plt.bar(modulation, result["ber"], alpha=0.6)
-        #     result["plot_ber"].plot(label=modulation)
-        # plt.title("Bit Error Rate (BER)")
-        # # plt.yscale("log")
-        # plt.grid(True)
-        # plt.legend()
-
-
-        # #display SER
-        # plt.subplot(2,4,2)
-        # for modulation, result in self.results.items():
-        #     plt.bar(modulation, result["ser"])
-        # plt.title("Symbol Error Rate (SER)")
-        # plt.grid(True)
-
-        # #display BLER
-        # plt.subplot(2,4,2)
-        # for modulation,result in self.results.items():
-        #     plt.bar(modulation, result["bler"])
-        # plt.title("Block Error Rate (BLER)")
-        # plt.grid(True)
-
-        
-
-
-        # #display (4-PAM) 
-
-        # # Sender Constellation
-        # plt.subplot(2,4,3)
-        # symbols = self.results["4-pam"]["constellation"]
-        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        # plt.title("Modulated Symbols (4-pam)")
-        # plt.grid(True)
-
-
-        # # Receiver Constellation
-        # plt.subplot(2,4,4)
-        # symbols = self.results["4-pam"]["received"]
-        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        # plt.title("Demodulated Symbols (4-pam)")
-        # plt.grid(True)
-
-
-        # #display (16-QAM)
-
-        # # Sender Constellation
-        # plt.subplot(2,4,5)
-        # symbols = self.results["16-qam"]["constellation"]
-        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        # plt.title("Modulated Symbols (16-pam)")
-        # plt.grid(True)
-
-        # # Receiver Constellation
-        # plt.subplot(2,4,6)
-        # symbols = self.results["16-qam"]["received"]
-        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        # plt.title("Demodulated Symbols (16-pam)")
-        # plt.grid(True)
-
-
-        # #display (64-QAM)
-
-        # # Sender Constellation
-        # plt.subplot(2,4,7)
-        # symbols = self.results["64-qam"]["constellation"]
-        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        # plt.title("Modulated Symbols (64-pam)")
-        # plt.grid(True)
-
-        # # Receiver Constellation
-        # plt.subplot(2,4,8)
-        # symbols = self.results["64-qam"]["received"]
-        # plt.scatter(np.real(symbols), np.imag(symbols), alpha=0.3)
-        # plt.title("Demodulated Symbols (64-pam)")
-        # plt.grid(True)
-
-        # plt.tight_layout()
-        # plt.show()
 
 
 
@@ -866,7 +886,37 @@ def example1():
             "material_xpd_coefficient" : 0.0,
             "material_scattering_pattern" : None,
             "material_frequency_update_callback" : None
-        }      
+        },
+        "mercury_wall" : {
+            "material_name" : "mercury_wall",
+            "material_relative_permittivity" : 1.0,
+            "material_conductivity" : 1e6,
+            "material_scattering_coefficient" : 0.0,
+            "material_xpd_coefficient" : 0.0,
+            "material_scattering_pattern" : None,
+            "material_frequency_update_callback" : None
+        },
+        "elevator" : {
+            "material_name" : "elevator",
+            "material_relative_permittivity" : 1.0,
+            "material_conductivity" : 1.4e6, #anojeidwto atsali
+            "material_scattering_coefficient" : 0.05, #elafros anwmali epifaneia
+            "material_xpd_coefficient" : 0.1,
+            "material_scattering_pattern" : None,
+            "material_frequency_update_callback" : None
+        },
+        "drywall" : {
+            "material_name" : "drywall",
+            "material_relative_permittivity" : 2.5,
+            "material_conductivity" : 0.01, #anojeidwto atsali
+            "material_scattering_coefficient" : 0.05, #elafros anwmali epifaneia
+            "material_xpd_coefficient" : 0.1,
+            "material_scattering_pattern" : None,
+            "material_frequency_update_callback" : None
+        },
+          
+
+        
        
 
     }
@@ -890,6 +940,11 @@ def example1():
 
     objectsToAdd = []
 
+
+    #test
+    # for mat in  materialsToCheck.keys():
+    #     print(materialsToCheck[mat]["material_name"])
+    #end test
     
     
     #add objects 
@@ -897,13 +952,13 @@ def example1():
     sionObj = sionnaObject("barrier-wall",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name=materialsToCheck["mirror"]["material_name"],
-        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
-        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
-        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
-        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
-        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
-        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"]
+        material_name=materialsToCheck["drywall"]["material_name"],
+        material_relative_permittivity=materialsToCheck["drywall"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["drywall"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["drywall"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["drywall"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["drywall"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"]
     )
 
     objectsToAdd.append(sionObj)
@@ -912,13 +967,13 @@ def example1():
     sionObj = sionnaObject("barrier-wall-2",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name=materialsToCheck["mirror"]["material_name"],
-        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
-        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
-        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
-        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
-        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
-        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"]
+        material_name=materialsToCheck["drywall"]["material_name"],
+        material_relative_permittivity=materialsToCheck["drywall"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["drywall"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["drywall"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["drywall"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["drywall"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"]
     )
 
 
@@ -930,13 +985,13 @@ def example1():
     sionObj = sionnaObject("barrier-wall-3",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name=materialsToCheck["mirror"]["material_name"],
-        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
-        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
-        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
-        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
-        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
-        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"]
+        material_name=materialsToCheck["drywall"]["material_name"],
+        material_relative_permittivity=materialsToCheck["drywall"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["drywall"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["drywall"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["drywall"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["drywall"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"]
     )
 
 
@@ -947,13 +1002,13 @@ def example1():
     sionObj = sionnaObject("barrier-wall-4",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name=materialsToCheck["mirror"]["material_name"],
-        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
-        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
-        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
-        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
-        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
-        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"]
+        material_name=materialsToCheck["drywall"]["material_name"],
+        material_relative_permittivity=materialsToCheck["drywall"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["drywall"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["drywall"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["drywall"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["drywall"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"]
     )
 
 
@@ -969,13 +1024,12 @@ def example1():
 
     env.store_simulation_info()
     env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
-    # env.create_communication_link("Laptop", [1.5,2,1], "Router", [1.25,2,1])
     env.calculate_channel_state()
     env.simulate_digital_communication(10)
 
     
 
-    env.display_stats("itu_brick")
+    env.display_stats()
     
     # try:
     #     env.preview_the_scene([480,480],[-1.5,3,6],[4.5,2,1], "example1.jpg")
@@ -1021,7 +1075,7 @@ def example2():
 
     
 
-    env.display_stats("itu_glass")
+    env.display_stats()
 
     
     
@@ -1072,7 +1126,7 @@ def example3():
 
     
 
-    env.display_stats("itu_glass")
+    env.display_stats()
 
     try:
         resolution = [1920,1080]
