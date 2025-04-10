@@ -229,7 +229,7 @@ class SionnaEnv:
 
             # Set a and tau
             # a -> the amplitude of the signal 
-            # tay -> propagation delay
+            # tay ->  delay
             if a_tau_set:
                 self.a = tf.concat([self.a, a_paths], axis=5)
                 self.tau = tf.concat([self.tau, tau_paths], axis=3)
@@ -252,16 +252,17 @@ class SionnaEnv:
         # Compute the channel impulse response for path
         a_paths, tau_paths = paths.cir()  
 
-        # Calculate propagation delay
+        # Calculate delay
         lnk_delay = int(round(np.min(self.tau[self.tau >= 0] * 1e9), 0)) #ns
 
-        # Calculate propagation loss
+        # Calculate loss
         lnk_loss = float(-10 * np.log10(tf.reduce_mean(tf.abs(self.h_freq) ** 2).numpy())) # Db
 
         #print channel info 
 
         print("Delay: ", lnk_delay)
         print("Loss: " , lnk_loss)
+        print("Bandwith: ", self.scene.channel_bw)
         # print("Frequencies ", self.frequencies.numpy())
         # print("Frequency Response : ", self.h_freq.numpy())
         # print("Impulse Response ")
@@ -269,6 +270,17 @@ class SionnaEnv:
         # print("delays: ", self.tau.numpy())
         # print("PATHS: ", paths)
 
+
+        #calculate RMS Delay Spread - FIX LATER
+        a_np = np.abs(self.a.numpy().flatten()) # |ak|
+        tau_np = self.tau.numpy().flatten() # |tk|
+        self.mean_tau = np.sum((a_np**2) * tau_np) / np.sum(a_np**2) # mean tau 
+        self.rms_delay_spread = np.sqrt(np.sum((a_np**2) * (tau_np - self.mean_tau)**2) / np.sum(a_np**2) ) #total rms 
+
+        #calculate coherence bandwith
+        self.coherence_bandwith = 1 / (5 * self.rms_delay_spread)
+        
+        
         
         # last_sim = simulation_time + (look_ahead - 1) * self.chan_coh_time_mode23
         # print("Calc channel finished:: LAH: Twin=%.6f -> %.6f" % (simulation_time/1e9, last_sim/1e9))
@@ -508,10 +520,10 @@ class SionnaEnv:
             
             
 
-            bits = self.binary_source([1, num_bits])
+            bits = self.binary_source([1, num_bits]) #transmitted bits
 
 
-            #modulation
+            #modulation - Mapping
             if (modulation_params["type"] == "pam"):
                 mapper = Mapper(constellation_type="pam", num_bits_per_symbol=modulation_params["num_bits"])
             else:
@@ -520,21 +532,21 @@ class SionnaEnv:
             symbols = mapper(bits)
 
             #channel effects
-            symbols_ofdm = tf.signal.fft(tf.cast(symbols, tf.complex64))
-            symbols_channel = symbols_ofdm * h_freq
-            awgn_channel = AWGN()
-            no = 10**(-ebno_db/10)
-            y = awgn_channel((symbols_channel,no))
+            symbols_ofdm = tf.signal.fft(tf.cast(symbols, tf.complex64)) #convert symbols to Frequencies Field using FFT    
+            symbols_channel = symbols_ofdm * h_freq 
+            awgn_channel = AWGN() #add the AWGN model for realistic noise  
+            no = 10**(-ebno_db/10) #convert to DB 
+            y = awgn_channel((symbols_channel,no)) #add the noise to channel(signal)
 
-            #demodulation
-            y_time = tf.signal.ifft(y)
+            #demodulation - demapping
+            y_time = tf.signal.ifft(y) #convert from frequency to time
             if (modulation_params["type"] == "pam"):
                 demapper = Demapper(demapping_method="app", constellation_type="pam", num_bits_per_symbol=modulation_params["num_bits"])
             else:
                 demapper = Demapper(demapping_method="app", constellation_type="qam", num_bits_per_symbol=modulation_params["num_bits"])
                     
-            llr = demapper([tf.expand_dims(y_time, axis=0), no])
-            bits_hat = tf.cast(llr>0, tf.float32)
+            llr = demapper([tf.expand_dims(y_time, axis=0), no]) #calculate the llr
+            bits_hat = tf.cast(llr>0, tf.float32) #get the received bits
 
                 
             #calculate metrics 
@@ -578,7 +590,7 @@ class SionnaEnv:
             for snr in self.snr_values:
                 ber, bler = plot_ber[modulation].simulate(
                     mc_fun=simulation,
-                    ebno_dbs=[snr], #maybe fix here, SNR values depents from modulation 
+                    ebno_dbs=[snr], #check all snrs 
                     batch_size=1000, #change with the parameter later
                     max_mc_iter=10,
                     legend = f"{modulation} at {snr} dB",
@@ -664,6 +676,11 @@ class SionnaEnv:
         plt.ylabel("Amplitude")
         plt.grid(True)
         
+
+        #need plot for coherence
+
+
+
 
         #add legend box with objects and materials 
         displayList = []
@@ -1031,11 +1048,11 @@ def example1():
 
     env.display_stats()
     
-    # try:
-    #     env.preview_the_scene([480,480],[-1.5,3,6],[4.5,2,1], "example1.jpg")
-    #     print("!!! RENDER DONE !!!")
-    # except Exception as e:
-    #     print(e)
+    try:
+        env.preview_the_scene([480,480],[-1.5,3,6],[4.5,2,1], "example1.jpg")
+        print("!!! RENDER DONE !!!")
+    except Exception as e:
+        print(e)
     
     
 
@@ -1071,19 +1088,19 @@ def example2():
     env.store_simulation_info()
     env.create_communication_link("Laptop", [6,4,3], "Router", [3,-7,3])
     env.calculate_channel_state()
-    env.simulate_digital_communication(10)
+    # env.simulate_digital_communication(10)
 
     
 
-    env.display_stats()
+    # env.display_stats()
 
     
     
     try:
         resolution = [480,480]
-        cameraPos = cameraPositions["room2"]["cameraPos"]
-        lookAt = cameraPositions["room2"]["lookAt"]
-        env.preview_the_scene(resolution, cameraPos, lookAt, "example1.jpg")
+        cameraPos = cameraPositions["room1"]["cameraPos"]
+        lookAt = cameraPositions["room1"]["lookAt"]
+        env.preview_the_scene(resolution, cameraPos, lookAt, "example2.jpg")
         print("!!! RENDER DONE !!!")
     except Exception as e:
         print(e)
