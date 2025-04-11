@@ -91,7 +91,8 @@ class sionnaObject:
                                 material_scattering_coefficient,
                                 material_xpd_coefficient,
                                 material_scattering_pattern,
-                                material_frequency_update_callback
+                                material_frequency_update_callback,
+                                setColor
                             ):
         self.hasCustomMaterial = True
         #create material and set it to sionnaObj
@@ -103,10 +104,26 @@ class sionnaObject:
                                         scattering_pattern = material_scattering_pattern,
                                         frequency_update_callback = material_frequency_update_callback,
                                     )
-    
+        self.color = setColor
+
     def get_custom_material_name(self):
         return self.material._name
 
+    def set_position(self, updatePOS):
+        self.position = updatePOS
+
+    def get_position(self):
+        return self.position
+    
+    def set_color(self, rgbCode):
+        self.color = rgbCode
+    
+    def get_color(self):
+        return self.color
+
+    def get_formatted_color(self):
+        return f"{self.color[0]} {self.color[1]} {self.color[2]}"
+    
 
 
 class SionnaEnv:
@@ -305,6 +322,7 @@ class SionnaEnv:
         print("---------- FILE ----------")
         fixLines = []
         sionnaObjectsWithCustomMaterials = []
+        customMaterialsCheck = []
         f = open(xml_file_path, 'r')
         for line in f:
 
@@ -324,7 +342,17 @@ class SionnaEnv:
                             fixLines.append('\t\t\t<rgb value="1 0 0" name="reflectance"/>\n')
                             fixLines.append('\t\t</bsdf>\n')
                             fixLines.append('\t</bsdf>\n')
-                    
+                        else:
+                            if (sionnaObj.get_material().name not in customMaterialsCheck):
+                                #set custom metarial
+                                customMaterialsCheck.append(sionnaObj.get_material().name)
+                                fixLines.append("\n")
+                                fixLines.append(f'\t<bsdf type="diffuse" id="custom-visual-{sionnaObj.get_material().name}">\n')
+                                fixLines.append(f'\t\t<rgb name="reflectance" value="{sionnaObj.get_formatted_color()}"/>\n')
+                                fixLines.append("\t</bsdf>")
+                                fixLines.append(f'\n')
+                            
+                            
 
                        
                         
@@ -347,6 +375,7 @@ class SionnaEnv:
                         fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
                         fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
                         fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
+                        fixLines.append(f'\t\t<ref id="custom-visual-{sionnaObj.get_material().name}"/>\n')
                         fixLines.append(f'\t</shape>\n')
                         
                         
@@ -398,38 +427,6 @@ class SionnaEnv:
                 self.scene.get(customMatObj.get_name()).radio_material=customMatObj.get_custom_material_name()
         
 
-            
-        
-
-        
-            
-            
-
-
-
-        # # self.scene._scene = mi.load_dict(temp_scene_dict)
-        # self.scene._scene = mi.load_file(tempPath)
-        # # os.remove(tempPath) #delete temp file
-
-        # self.scene._scene_params = mi.traverse(self.scene._scene)
-
-        # # Load the cameras
-        # self.scene._load_cameras()
-
-        # # Load the scene objects
-        # self.scene._load_scene_objects()
-
-        # # By default, no callable is used for radio materials
-        # self.scene.radio_material_callable = None
-
-        # # By default, no callable is used for scattering patterns
-        # self.scene._scattering_pattern_callable = None
-
-        # self.scene.scene_geometry_updated()
-        
-        
-        
-        
 
 
 
@@ -963,19 +960,19 @@ def example1():
     #     print(materialsToCheck[mat]["material_name"])
     #end test
     
-    
     #add objects 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
     sionObj = sionnaObject("barrier-wall",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name=materialsToCheck["drywall"]["material_name"],
-        material_relative_permittivity=materialsToCheck["drywall"]["material_relative_permittivity"],
-        material_conductivity=materialsToCheck["drywall"]["material_conductivity"],
-        material_scattering_coefficient=materialsToCheck["drywall"]["material_scattering_coefficient"],
-        material_xpd_coefficient=materialsToCheck["drywall"]["material_xpd_coefficient"],
-        material_scattering_pattern=materialsToCheck["drywall"]["material_scattering_pattern"],
-        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"]
+        material_name=materialsToCheck["mirror"]["material_name"],
+        material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["mirror"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["mirror"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["mirror"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["mirror"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["mirror"]["material_frequency_update_callback"],
+        setColor=[1.0, 0.0, 0.0]
     )
 
     objectsToAdd.append(sionObj)
@@ -984,13 +981,14 @@ def example1():
     sionObj = sionnaObject("barrier-wall-2",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name=materialsToCheck["drywall"]["material_name"],
-        material_relative_permittivity=materialsToCheck["drywall"]["material_relative_permittivity"],
-        material_conductivity=materialsToCheck["drywall"]["material_conductivity"],
-        material_scattering_coefficient=materialsToCheck["drywall"]["material_scattering_coefficient"],
-        material_xpd_coefficient=materialsToCheck["drywall"]["material_xpd_coefficient"],
-        material_scattering_pattern=materialsToCheck["drywall"]["material_scattering_pattern"],
-        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"]
+        material_name=materialsToCheck["mercury_wall"]["material_name"],
+        material_relative_permittivity=materialsToCheck["mercury_wall"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["mercury_wall"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["mercury_wall"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["mercury_wall"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["mercury_wall"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["mercury_wall"]["material_frequency_update_callback"],
+        setColor=[0.0 , 1.0, 0.0]
     )
 
 
@@ -1002,13 +1000,14 @@ def example1():
     sionObj = sionnaObject("barrier-wall-3",obj_file_path)
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
-        material_name=materialsToCheck["drywall"]["material_name"],
-        material_relative_permittivity=materialsToCheck["drywall"]["material_relative_permittivity"],
-        material_conductivity=materialsToCheck["drywall"]["material_conductivity"],
-        material_scattering_coefficient=materialsToCheck["drywall"]["material_scattering_coefficient"],
-        material_xpd_coefficient=materialsToCheck["drywall"]["material_xpd_coefficient"],
-        material_scattering_pattern=materialsToCheck["drywall"]["material_scattering_pattern"],
-        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"]
+        material_name=materialsToCheck["elevator"]["material_name"],
+        material_relative_permittivity=materialsToCheck["elevator"]["material_relative_permittivity"],
+        material_conductivity=materialsToCheck["elevator"]["material_conductivity"],
+        material_scattering_coefficient=materialsToCheck["elevator"]["material_scattering_coefficient"],
+        material_xpd_coefficient=materialsToCheck["elevator"]["material_xpd_coefficient"],
+        material_scattering_pattern=materialsToCheck["elevator"]["material_scattering_pattern"],
+        material_frequency_update_callback=materialsToCheck["elevator"]["material_frequency_update_callback"],
+        setColor=[0.0, 0.0, 1.0]
     )
 
 
@@ -1025,7 +1024,8 @@ def example1():
         material_scattering_coefficient=materialsToCheck["drywall"]["material_scattering_coefficient"],
         material_xpd_coefficient=materialsToCheck["drywall"]["material_xpd_coefficient"],
         material_scattering_pattern=materialsToCheck["drywall"]["material_scattering_pattern"],
-        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"]
+        material_frequency_update_callback=materialsToCheck["drywall"]["material_frequency_update_callback"],
+        setColor=[1.0, 1.0, 0.0]
     )
 
 
