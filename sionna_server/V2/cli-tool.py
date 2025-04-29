@@ -666,12 +666,18 @@ class SionnaEnv:
         plt.subplot(2,2,3)
         amplitudes = self.a.numpy().flatten()
         display_amplitudes = np.abs(amplitudes)
-        display_delays = self.tau.numpy().flatten()
+        display_delays = self.tau.numpy().flatten() #convert to nanoseconds
         plt.stem(display_delays, display_amplitudes, linefmt="b-", markerfmt="bo", basefmt=' ')
         plt.title("Impulse Response (Power)")
         plt.xlabel("Delay [s]")
         plt.ylabel("Amplitude")
         plt.grid(True)
+
+        if (len(display_delays)>0):#case if doesn't exist 
+            max_delay = np.max(display_delays) #take the max limit 
+            min_limit = -0.01*max_delay
+            max_limit = 1.01*max_delay
+            plt.xlim([min_limit, max_limit])
         
 
         #need plot for coherence
@@ -870,7 +876,11 @@ class SionnaEnv:
         #test
         print("self.scene._scene.shapes() : ")
         print(self.scene._scene.shapes())
+
+        for i, obj in enumerate(self.scene._scene.shapes()):
+            print(f"obj: {obj.name}")
         #end test
+        exit()
 
         self.scene.render_to_file(
             camera = set_camera,
@@ -1048,11 +1058,11 @@ def example1():
 
     env.display_stats()
     
-    try:
-        env.preview_the_scene([480,480],[-1.5,3,6],[4.5,2,1], "example1.jpg")
-        print("!!! RENDER DONE !!!")
-    except Exception as e:
-        print(e)
+    # try:
+    #     env.preview_the_scene([480,480],[-1.5,3,6],[4.5,2,1], "example1.jpg")
+    #     print("!!! RENDER DONE !!!")
+    # except Exception as e:
+    #     print(e)
     
     
 
@@ -1061,19 +1071,19 @@ def example2():
 
     cameraPositions = { 
         "room1" : {
-            "cameraPos" : [-5,-6,4],
-            "lookAt" : [-2,1,3]
+            "cameraPos" : [-6,-1,3],
+            "lookAt" : [2,-1.5,3]
         },
 
         "room2" : { 
-            "cameraPos" : [2,6,10] ,
-            "lookAt" : [6,4,3]
+            "cameraPos" : [2,6,3.5] ,
+            "lookAt" : [4,1,3]
         }
         
     }
 
-    print("room1 -> cameraPos : ", cameraPositions["room1"]["cameraPos"])
-    print("room1 -> lookAt : ", cameraPositions["room1"]["lookAt"])
+    # print("room1 -> cameraPos : ", cameraPositions["room1"]["cameraPos"])
+    # print("room1 -> lookAt : ", cameraPositions["room1"]["lookAt"])
 
     filepath = "./../models/futuristic_apartment/Futuristic_Apartment.xml"
     scene = load_scene(filepath)
@@ -1088,22 +1098,31 @@ def example2():
     env.store_simulation_info()
     env.create_communication_link("Laptop", [6,4,3], "Router", [3,-7,3])
     env.calculate_channel_state()
-    # env.simulate_digital_communication(10)
+    env.simulate_digital_communication(10)
 
     
 
-    # env.display_stats()
+    env.display_stats()
 
     
-    
-    try:
-        resolution = [480,480]
-        cameraPos = cameraPositions["room1"]["cameraPos"]
-        lookAt = cameraPositions["room1"]["lookAt"]
-        env.preview_the_scene(resolution, cameraPos, lookAt, "example2.jpg")
-        print("!!! RENDER DONE !!!")
-    except Exception as e:
-        print(e)
+    #rendering 
+    # try:
+    #     resolution = [1280,720]
+        
+    #     #render first room
+    #     # cameraPos = cameraPositions["room1"]["cameraPos"]
+    #     # lookAt = cameraPositions["room1"]["lookAt"]
+    #     # env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
+        
+    #     #render second room
+    #     cameraPos = cameraPositions["room2"]["cameraPos"]
+    #     lookAt = cameraPositions["room2"]["lookAt"]
+    #     env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
+        
+
+    #     print("!!! RENDER DONE !!!")
+    # except Exception as e:
+    #     print(e)
     
 
 def example3():
@@ -1145,14 +1164,14 @@ def example3():
 
     env.display_stats()
 
-    try:
-        resolution = [1920,1080]
-        cameraPos = cameraPositions["place3"]["cameraPos"]
-        lookAt = cameraPositions["place3"]["lookAt"]
-        env.preview_the_scene(resolution, cameraPos, lookAt, "example3.jpg")
-        print("!!! RENDER DONE !!!")
-    except Exception as e:
-        print(e)
+    # try:
+    #     resolution = [480,480]
+    #     cameraPos = cameraPositions["place3"]["cameraPos"]
+    #     lookAt = cameraPositions["place3"]["lookAt"]
+    #     env.preview_the_scene(resolution, cameraPos, lookAt, "example3.jpg")
+    #     print("!!! RENDER DONE !!!")
+    # except Exception as e:
+    #     print(e)
         
 
         
@@ -1176,11 +1195,11 @@ if __name__ == '__main__':
 
     print("HELLO SIONNA!!!")
 
-    example1()
+    #example1()
 
-    # example2() 
+    #example2() 
 
-    # example3()   
+    example3()   
 
     
     
