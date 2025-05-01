@@ -993,7 +993,7 @@ def example1():
     #end test
     
     #add objects 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/check_zero_pos/barrier_wall.obj"
     sionObj = sionnaObject("barrier-wall",obj_file_path,[3,2.00469,0.422312])
 
     # sionObj.set_sionna_material("itu_brick")
@@ -1010,8 +1010,8 @@ def example1():
 
     objectsToAdd.append(sionObj)
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall2.obj"
-    sionObj = sionnaObject("barrier-wall-2",obj_file_path, [3,2.00469,1.90484])
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/check_zero_pos/barrier_wall2.obj"
+    sionObj = sionnaObject("barrier-wall-2",obj_file_path,[3,2.00469,1.90484])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
         material_name=materialsToCheck["mercury_wall"]["material_name"],
@@ -1029,7 +1029,7 @@ def example1():
     objectsToAdd.append(sionObj)
 
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall3.obj"
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/check_zero_pos/barrier_wall3.obj"
     sionObj = sionnaObject("barrier-wall-3",obj_file_path, [3,0.936904,1.2271])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
@@ -1047,7 +1047,7 @@ def example1():
 
     objectsToAdd.append(sionObj)
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall4.obj"
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/check_zero_pos/barrier_wall4.obj"
     sionObj = sionnaObject("barrier-wall-4",obj_file_path, [3,3.34588,1.2271])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
