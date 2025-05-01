@@ -31,7 +31,7 @@ import mitsuba as mi
 import numpy as np
 import warnings
 import time
-from trimesh import load_mesh
+import trimesh
 
 # mi.set_variant('llvm_ad_rgb')
 # gpus = tf.config.list_physical_devices('GPU')
@@ -304,6 +304,16 @@ class SionnaEnv:
         # print("Calc channel finished:: LAH: Twin=%.6f -> %.6f" % (simulation_time/1e9, last_sim/1e9))
 
 
+    def convert_stl_to_obj(self,stl_file_path):
+        stl_mesh = trimesh.load(stl_file_path)
+        changeFileName = stl_file_path.split("/")[-1].split(".")[0]+".obj"
+        fixPath = stl_file_path.split("/")
+        fixPath.pop()
+        fixPath.append(changeFileName)
+        destination = "/".join(fixPath)
+        stl_mesh.export(destination)
+        return destination
+
         
 
     def load_obj_from_file(self, sionnaObjects ,xml_file_path):
@@ -324,6 +334,7 @@ class SionnaEnv:
         fixLines = []
         sionnaObjectsWithCustomMaterials = []
         customMaterialsCheck = []
+        convertedPaths = []
         f = open(xml_file_path, 'r')
         for line in f:
 
@@ -365,7 +376,16 @@ class SionnaEnv:
                         #ITU-Material
                         fixLines.append("\n")
                         fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
-                        fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
+
+                        print("extension: ", sionnaObj.get_objFilePath().split("/")[-1].split(".")[1]) #TEST
+                        #case need convert 
+                        if (sionnaObj.get_objFilePath().split("/")[-1].split(".")[1] != "obj"):
+                            path = self.convert_stl_to_obj(sionnaObj.get_objFilePath())
+                            convertedPaths.append(path)
+                        else:
+                            path = sionnaObj.get_objFilePath()
+            
+                        fixLines.append(f'\t\t<string name="filename" value="{path}"/>\n')
                         fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
 
                         #set positions
@@ -384,7 +404,16 @@ class SionnaEnv:
                         sionnaObjectsWithCustomMaterials.append(sionnaObj)
                         fixLines.append("\n")
                         fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
-                        fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
+
+                        #case need convert
+                        print("extension: ", sionnaObj.get_objFilePath().split("/")[-1].split(".")[1]) #TEST
+                        if (sionnaObj.get_objFilePath().split("/")[-1].split(".")[1] != "obj"):
+                            path = self.convert_stl_to_obj(sionnaObj.get_objFilePath())
+                            convertedPaths.append(path)
+                        else:
+                            path = sionnaObj.get_objFilePath()
+
+                        fixLines.append(f'\t\t<string name="filename" value="{path}"/>\n')
                         fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
 
                         #set positions
@@ -447,6 +476,9 @@ class SionnaEnv:
                 self.scene.get(customMatObj.get_name()).radio_material=customMatObj.get_custom_material_name()
     
 
+        #delete the converted files 
+        for delPath in convertedPaths:
+            os.remove(delPath)
 
         #For Debbuging
         # print("------------- AFTER UPDATE -------------")
@@ -993,7 +1025,7 @@ def example1():
     #end test
     
     #add objects 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/check_zero_pos/barrier_wall.obj"
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall.stl"
     sionObj = sionnaObject("barrier-wall",obj_file_path,[3,2.00469,0.422312])
 
     # sionObj.set_sionna_material("itu_brick")
@@ -1010,7 +1042,7 @@ def example1():
 
     objectsToAdd.append(sionObj)
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/check_zero_pos/barrier_wall2.obj"
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall2.stl"
     sionObj = sionnaObject("barrier-wall-2",obj_file_path,[3,2.00469,1.90484])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
@@ -1029,7 +1061,7 @@ def example1():
     objectsToAdd.append(sionObj)
 
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/check_zero_pos/barrier_wall3.obj"
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall3.stl"
     sionObj = sionnaObject("barrier-wall-3",obj_file_path, [3,0.936904,1.2271])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
@@ -1047,7 +1079,7 @@ def example1():
 
     objectsToAdd.append(sionObj)
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/check_zero_pos/barrier_wall4.obj"
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall4.stl"
     sionObj = sionnaObject("barrier-wall-4",obj_file_path, [3,3.34588,1.2271])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
