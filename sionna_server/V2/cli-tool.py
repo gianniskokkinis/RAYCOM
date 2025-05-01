@@ -67,10 +67,11 @@ class sionnaObject:
 
     """
 
-    def __init__(self, updateObjName, updateObjFilePath):
+    def __init__(self, updateObjName, updateObjFilePath, updatePos):
         self.objName = updateObjName
         self.objFilePath = updateObjFilePath
         self.hasCustomMaterial = False
+        self.position = updatePos
         
     
     def get_name(self):
@@ -366,6 +367,16 @@ class SionnaEnv:
                         fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
                         fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
                         fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
+
+                        #set positions
+                        x = sionnaObj.position[0]
+                        y = sionnaObj.position[1]
+                        z = sionnaObj.position[2]
+                        fixLines.append(f'\t\t<transform name="to_world">\n')
+                        fixLines.append(f'\t\t\t<translate x="{x}" y="{y}" z="{z}"/>\n')
+                        fixLines.append(f"\t\t</transform>\n")
+                        
+
                         fixLines.append(f'\t\t<ref id="mat-{sionnaObj.get_material()}" name="bsdf"/>\n')
                         fixLines.append(f'\t</shape>\n')
                     else:
@@ -375,6 +386,15 @@ class SionnaEnv:
                         fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
                         fixLines.append(f'\t\t<string name="filename" value="{sionnaObj.get_objFilePath()}"/>\n')
                         fixLines.append(f'\t\t<boolean name="face_normals" value="true"/>\n')
+
+                        #set positions
+                        x = sionnaObj.position[0]
+                        y = sionnaObj.position[1]
+                        z = sionnaObj.position[2]
+                        fixLines.append(f'\t\t<transform name="to_world">\n')
+                        fixLines.append(f'\t\t\t<translate x="{x}" y="{y}" z="{z}"/>\n')
+                        fixLines.append(f"\t\t</transform>\n")
+
                         fixLines.append(f'\t\t<ref id="custom-visual-{sionnaObj.get_material().name}"/>\n')
                         fixLines.append(f'\t</shape>\n')
                         
@@ -420,14 +440,12 @@ class SionnaEnv:
         for customMatObj in sionnaObjectsWithCustomMaterials:
 
             if (customMatObj.get_custom_material_name() not in self.scene.radio_materials.keys()):
-                #need to set the radio_material
+                #set material
                 self.scene.get(customMatObj.get_name()).radio_material=customMatObj.material
             else:
                 #just perform the name of the material
                 self.scene.get(customMatObj.get_name()).radio_material=customMatObj.get_custom_material_name()
-        
-
-
+    
 
 
         #For Debbuging
@@ -444,8 +462,15 @@ class SionnaEnv:
         self.snr_values = []
         
         #initialize snr 
-        for i in range(1,31):
-            self.snr_values.append(i)
+        #self.snr_values = np.linspace(0,30,60)
+        
+        self.snr_values = np.concatenate([
+            np.linspace(0,5,10), #High resolution for low SNR
+            np.linspace(5,15,10), #medium resolution
+            np.linspace(15,30,6) #low resolution for high SNR
+        ])
+
+        
         
         print("self.snr_values :",self.snr_values)
 
@@ -580,7 +605,8 @@ class SionnaEnv:
 
         #for every modulation run simulation
         for modulation, modulation_params in self.modulations.items():
-
+            
+            print(f"\n\n{modulation} modulation: ")
 
             num_bits = self.fft_size * modulation_params['num_bits']
 
@@ -588,11 +614,12 @@ class SionnaEnv:
                 ber, bler = plot_ber[modulation].simulate(
                     mc_fun=simulation,
                     ebno_dbs=[snr], #check all snrs 
-                    batch_size=1000, #change with the parameter later
-                    max_mc_iter=10,
+                    batch_size=10000, #change with the parameter later
+                    max_mc_iter=100,
                     legend = f"{modulation} at {snr} dB",
-                    add_ber=True,
-                    add_bler=True
+                    #add_ber=True,
+                    #add_bler=True,
+                    show_fig=False
                 )
 
                 # print("ber: ",ber)
@@ -610,12 +637,7 @@ class SionnaEnv:
                 
                 
             
-            #test
-            # print("sers: ", modulation_params["ser"])
-            # print("bit_errors: ", modulation_params["bit_errors"])
-            # print("block_errors: ", modulation_params["block_errors"])
-            # time.sleep(5)
-        
+           
 
             
         
@@ -972,7 +994,8 @@ def example1():
     
     #add objects 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall.obj"
-    sionObj = sionnaObject("barrier-wall",obj_file_path)
+    sionObj = sionnaObject("barrier-wall",obj_file_path,[3,2.00469,0.422312])
+
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
         material_name=materialsToCheck["mirror"]["material_name"],
@@ -988,7 +1011,7 @@ def example1():
     objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall2.obj"
-    sionObj = sionnaObject("barrier-wall-2",obj_file_path)
+    sionObj = sionnaObject("barrier-wall-2",obj_file_path, [3,2.00469,1.90484])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
         material_name=materialsToCheck["mercury_wall"]["material_name"],
@@ -1007,7 +1030,7 @@ def example1():
 
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall3.obj"
-    sionObj = sionnaObject("barrier-wall-3",obj_file_path)
+    sionObj = sionnaObject("barrier-wall-3",obj_file_path, [3,0.936904,1.2271])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
         material_name=materialsToCheck["elevator"]["material_name"],
@@ -1025,7 +1048,7 @@ def example1():
     objectsToAdd.append(sionObj)
 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/barrier_wall4.obj"
-    sionObj = sionnaObject("barrier-wall-4",obj_file_path)
+    sionObj = sionnaObject("barrier-wall-4",obj_file_path, [3,3.34588,1.2271])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
         material_name=materialsToCheck["drywall"]["material_name"],
@@ -1195,11 +1218,11 @@ if __name__ == '__main__':
 
     print("HELLO SIONNA!!!")
 
-    #example1()
+    example1()
 
     #example2() 
 
-    example3()   
+    #example3()   
 
     
     
