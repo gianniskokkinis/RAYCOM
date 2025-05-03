@@ -44,7 +44,7 @@ import trimesh
 
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, Camera
 from sionna.channel import cir_to_ofdm_channel, subcarrier_frequencies, AWGN
-from sionna.rt.antenna import iso_pattern
+from sionna.rt.antenna import iso_pattern,tr38901_pattern
 from sionna.rt.scene_object import SceneObject
 from sionna.rt.radio_material import RadioMaterial
 from sionna.utils.misc import *
@@ -54,6 +54,7 @@ from sionna.mapping import *
 import matplotlib.pyplot as plt
 import matplotlib as mat
 from IPython.display import Image,display
+from PyQt5.QtWidgets import QScrollArea, QLabel, QVBoxLayout, QWidget
 
 
     
@@ -746,20 +747,37 @@ class SionnaEnv:
         plt.subplot(2,2,4)
         plt.axis("off")
         info_text = "\n".join(displayList)
-        plt.text(
-            0.5,
-            0.5,
-            info_text,
-            ha="center",
-            va="center",
-            fontsize=10,
-            bbox=dict(
-                facecolor = "white",
-                edgecolor = "black",
-                boxstyle = "round,pad=0.5",
-                alpha=0.8
+
+        #simple window
+        if (len(displayList)<25):    
+            plt.text(
+                0.5,
+                0.5,
+                info_text,
+                ha="center",
+                va="center",
+                fontsize=10,
+                bbox=dict(
+                    facecolor = "white",
+                    edgecolor = "black",
+                    boxstyle = "round,pad=0.5",
+                    alpha=0.8
+                )
             )
-        )
+        #scroll pane window 
+        else:
+            
+            scroll_area = QScrollArea()
+            scroll_content = QWidget()
+            layout = QVBoxLayout(scroll_content)
+
+            for obj in displayList:
+                layout.addWidget(QLabel(obj))
+            
+            scroll_area.setWidget(scroll_content)
+            scroll_area.setWidgetResizable(True)
+            scroll_area.show()
+            
 
         plt.tight_layout()
         plt.show()
@@ -930,11 +948,8 @@ class SionnaEnv:
         #test
         print("self.scene._scene.shapes() : ")
         print(self.scene._scene.shapes())
-
-        for i, obj in enumerate(self.scene._scene.shapes()):
-            print(f"obj: {obj.name}")
         #end test
-        exit()
+
 
         self.scene.render_to_file(
             camera = set_camera,
@@ -1194,9 +1209,16 @@ def example3():
         },
 
         "place3" : { 
-            "cameraPos" : [37,-268,114] ,
+            "cameraPos" : [-4.8,-83.91,65.8] ,
             "lookAt" : [-26,37,0]
         }
+    }
+
+    smartphonePositions = {
+
+        "pos1" : [-8,-31.5,3.6],
+        "pos2" : [-52.1,-237.1,3.6],
+        "pos3" : [-141.3,-115.1,5.5]
     }
 
     filepath = "./../models/Ioannina/Ioannina.xml"
@@ -1209,11 +1231,17 @@ def example3():
     #setup enviroment and start simulation
     env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
 
+    #add the antenna
+    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/blender-workspace/Ioannina/objects_files/Antenna.obj"
+    sionObj = sionnaObject("Antenna",obj_file_path, [0,0,0])
+    sionObj.set_sionna_material("itu_metal")
+    objectsToAdd = [sionObj]
+    env.load_obj_from_file(objectsToAdd, filepath)
     
     env.store_simulation_info()
-    env.create_communication_link("Smartphone", [32,-93,30], "TelTower", [0,35,0])
+    env.create_communication_link("Smartphone", smartphonePositions["pos3"], "TelTower", [0,10,50])
     env.calculate_channel_state()
-    env.simulate_digital_communication(10)
+    #env.simulate_digital_communication(10)
 
     
 
@@ -1250,11 +1278,11 @@ if __name__ == '__main__':
 
     print("HELLO SIONNA!!!")
 
-    example1()
+    #example1()
 
     #example2() 
 
-    #example3()   
+    example3()   
 
     
     
