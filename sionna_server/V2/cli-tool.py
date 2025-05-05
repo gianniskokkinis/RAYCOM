@@ -1332,6 +1332,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     print("render: ", args.render)
+    isRender = args.render
     print("config: ", args.config)
     filepath = args.config
     
@@ -1363,6 +1364,8 @@ if __name__ == '__main__':
 
     sionnObjects = [] 
    
+    
+
     for sionObj in list(example_config["objects"].keys()):
         print("sionObj: ", sionObj)
         obj_file_path = example_config["objects"][sionObj]["obj_file_path"]
@@ -1371,8 +1374,9 @@ if __name__ == '__main__':
                                 obj_file_path, 
                                 example_config["objects"][sionObj]["position"]
                                 )
-        
+        print(list(example_config["objects"][sionObj].keys()))
         if ("custom_material" in list(example_config["objects"][sionObj].keys())):
+            print("!!!! CUSTOM MATERIAL !!!!")
             update_material_scattering_pattern = None
             if (example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"] != "None"):
                 update_material_scattering_pattern = example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"]
@@ -1393,19 +1397,32 @@ if __name__ == '__main__':
 
         sionnObjects.append(put_sionObj)
         
-        env.load_obj_from_file(sionnObjects, filepath)
+    
+    env.load_obj_from_file(sionnObjects, filepath)
 
         
 
 
-        env.store_simulation_info()
-        env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
-        env.calculate_channel_state()
-        env.simulate_digital_communication(10)
+    env.store_simulation_info()
+    env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
+    env.calculate_channel_state()
+    env.simulate_digital_communication(10)
 
         
 
-        env.display_stats()
+    env.display_stats()
+    
+    if (isRender):
+        try:
+            resolution = example_config["resolution"]
+            cameraPos = example_config["camera_positions"]
+            lookAt = example_config["look_at"]
+            simulation_name = example_config["simulation_name"]
+            env.preview_the_scene(resolution, cameraPos, lookAt, simulation_name)
+            print("RENDER DONE")
+        except Exception as e:
+            print(e)
+
     
 
 

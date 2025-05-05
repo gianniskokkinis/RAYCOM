@@ -1,4 +1,5 @@
 {
+    "simulation_name" : "example_1",
     "single_run" : true,
     "rt_calc_diffraction" : true,
     "rt_max_depth" : 6,
