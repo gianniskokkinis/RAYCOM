@@ -474,7 +474,7 @@ class SionnaEnv:
         
         
 
-    def simulate_digital_communication(self, ebno_db):
+    def simulate_digital_communication(self, update_ebno_db):
 
         self.snr_values = []
         
@@ -573,8 +573,10 @@ class SionnaEnv:
             #channel effects
             symbols_ofdm = tf.signal.fft(tf.cast(symbols, tf.complex64)) #convert symbols to Frequencies Field using FFT    
             symbols_channel = symbols_ofdm * h_freq 
-            awgn_channel = AWGN() #add the AWGN model for realistic noise  
-            no = 10**(-ebno_db/10) #convert to DB 
+            signal_power = tf.reduce_mean(tf.abs(symbols_channel)**2)
+            awgn_channel = AWGN() #add the AWGN model for realistic noise 
+            bits_per_symbol = modulation_params["num_bits"]
+            no = signal_power / (10**(ebno_db/10))
             y = awgn_channel((symbols_channel,no)) #add the noise to channel(signal)
 
             #demodulation - demapping
@@ -590,15 +592,19 @@ class SionnaEnv:
                 
             #calculate metrics 
             ser = compute_ser(symbols, y_time) #calculate Symbol Error Rate
+            temp_ser_results.append(np.mean(ser))
 
             #calculate Bitwise Mutual Information 
             bit_errors = count_errors(bits, bits_hat)
-            block_errors = count_block_errors(bits, bits_hat)
-
-            #calculate
-            temp_ser_results.append(np.mean(ser))
             temp_bit_errors_results.append(np.mean(bit_errors))
+
+            #calculate Block Errors
+            block_errors = count_block_errors(bits, bits_hat)
             temp_block_errors_results.append(np.mean(block_errors))
+            
+            
+            
+            
 
 
 
@@ -626,15 +632,21 @@ class SionnaEnv:
             num_bits = self.fft_size * modulation_params['num_bits']
 
             for snr in self.snr_values:
+
+                #clear tables for next experiment
+                temp_ser_results = []
+                temp_bit_errors_results = []
+                temp_block_errors_results = []
+
                 ber, bler = plot_ber[modulation].simulate(
                     mc_fun=simulation,
-                    ebno_dbs=[snr], #check all snrs 
-                    batch_size=10000, #change with the parameter later
+                    ebno_dbs=[snr],
+                    batch_size=10000,
                     max_mc_iter=100,
                     legend = f"{modulation} at {snr} dB",
-                    #add_ber=True,
-                    #add_bler=True,
-                    show_fig=False
+                    add_ber=True,
+                    add_bler=True,
+                    show_fig=False,
                 )
 
                 # print("ber: ",ber)
@@ -645,10 +657,7 @@ class SionnaEnv:
                 modulation_params["bit_errors"].append(np.mean(temp_bit_errors_results))
                 modulation_params["block_errors"].append(np.mean(temp_block_errors_results))
                
-                #clear tables for next experiment
-                temp_ser_results = []
-                temp_bit_errors_results = []
-                temp_block_errors_results = []
+                
                 
                 
             
@@ -777,9 +786,9 @@ class SionnaEnv:
         plt.ylabel("BER")
         plt.grid(True)
 
-        #fix the limits 
-        plt.ylim(bottom=0.4, top=0.6)
-        plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
+        # #fix the limits 
+        # plt.ylim(bottom=0.4, top=0.6)
+        # plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
 
         #display PAM BLER
         plt.subplot(2,4,2)
@@ -804,8 +813,8 @@ class SionnaEnv:
         plt.grid(True)
 
         #fix the limits 
-        plt.ylim(bottom=0.4, top=0.6)
-        plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
+        # plt.ylim(bottom=0.4, top=0.6)
+        # plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
 
         #display 4-PAM BLER
         plt.subplot(2,4,4)
@@ -828,8 +837,8 @@ class SionnaEnv:
         plt.grid(True)
 
         #fix the limits 
-        plt.ylim(bottom=0.4, top=0.6)
-        plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
+        # plt.ylim(bottom=0.4, top=0.6)
+        # plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
 
         #display 16-QAM BLER
         plt.subplot(2,4,6)
@@ -853,8 +862,8 @@ class SionnaEnv:
         plt.grid(True)
 
         #fix the limits 
-        plt.ylim(bottom=0.4, top=0.6)
-        plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
+        # plt.ylim(bottom=0.4, top=0.6)
+        # plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
 
         #display 64-QAM BLER
         plt.subplot(2,4,8)
@@ -1035,10 +1044,6 @@ def example1():
     objectsToAdd = []
 
 
-    #test
-    # for mat in  materialsToCheck.keys():
-    #     print(materialsToCheck[mat]["material_name"])
-    #end test
     
     #add objects 
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall.stl"
@@ -1181,7 +1186,7 @@ def example2():
     
     #add mirror to the scene
     obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/blender-workspace/FuturisticApartment/Objects/mirror/Rectangular_Mirror-White_v1_L1.123c6443420e-bde5-462a-9516-f34ae0541095/Mirror.obj"
-    sionObj = sionnaObject("Mirror",obj_file_path, [-1,-7.3,3])
+    sionObj = sionnaObject("Mirror",obj_file_path, [-1,-7.6,3])
     sionObj.create_custom_material(
         material_name=materialsToCheck["mirror"]["material_name"],
         material_relative_permittivity=materialsToCheck["mirror"]["material_relative_permittivity"],
@@ -1201,31 +1206,31 @@ def example2():
     env.store_simulation_info()
     env.create_communication_link("Laptop", [6,4,3], "Router", [5,-7,3])
     env.calculate_channel_state()
-    # env.simulate_digital_communication(10)
+    env.simulate_digital_communication(10)
 
     
 
-    # env.display_stats()
+    env.display_stats()
 
     
     #rendering 
-    try:
-        resolution = [480,480]
+    # try:
+    #     resolution = [480,480]
         
-        #render first room
-        cameraPos = cameraPositions["room1"]["cameraPos"]
-        lookAt = cameraPositions["room1"]["lookAt"]
-        env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
+    #     #render first room
+    #     cameraPos = cameraPositions["room1"]["cameraPos"]
+    #     lookAt = cameraPositions["room1"]["lookAt"]
+    #     env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
         
-    #     #render second room
-    #     cameraPos = cameraPositions["room2"]["cameraPos"]
-    #     lookAt = cameraPositions["room2"]["lookAt"]
-    #     env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
+    # #     #render second room
+    # #     cameraPos = cameraPositions["room2"]["cameraPos"]
+    # #     lookAt = cameraPositions["room2"]["lookAt"]
+    # #     env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
         
 
-        print("!!! RENDER DONE !!!")
-    except Exception as e:
-        print(e)
+    #     print("!!! RENDER DONE !!!")
+    # except Exception as e:
+    #     print(e)
     
 
 def example3():
@@ -1297,131 +1302,131 @@ def create_example():
 
     
 #Test examples 
-# if __name__ == '__main__': 
+if __name__ == '__main__': 
     
 
     
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--single_run", help="Whether not to terminate after single run", action='store_true')
-#     parser.add_argument("--rt_calc_diffraction", help="Calc diffraction in raytracing", action='store_true')
-#     parser.add_argument("--rt_max_depth", type=int, default=6, help="Calc diffraction in raytracing")
-#     parser.add_argument("--rt_max_parallel_links", type=int, default=4, help="Max no. of receivers")
-#     parser.add_argument("--est_csi", help="Whether to estimate complex CSI per OFDM subcarrier", action='store_true')
-#     parser.add_argument("--verbose", help="Whether to run in verbose mode", action='store_true')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--single_run", help="Whether not to terminate after single run", action='store_true')
+    parser.add_argument("--rt_calc_diffraction", help="Calc diffraction in raytracing", action='store_true')
+    parser.add_argument("--rt_max_depth", type=int, default=6, help="Calc diffraction in raytracing")
+    parser.add_argument("--rt_max_parallel_links", type=int, default=4, help="Max no. of receivers")
+    parser.add_argument("--est_csi", help="Whether to estimate complex CSI per OFDM subcarrier", action='store_true')
+    parser.add_argument("--verbose", help="Whether to run in verbose mode", action='store_true')
     
-#     #open input file here with args 
+    #open input file here with args 
 
     
-#     args = parser.parse_args()
+    args = parser.parse_args()
 
-#     print("HELLO SIONNA!!!")
+    print("HELLO SIONNA!!!")
 
-#     #example1()
+    example1()
 
-#     example2() 
+    #example2() 
 
-#     #example3()   
+    #example3()   
 
     
 #Main
-if __name__ == '__main__': 
+# if __name__ == '__main__': 
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="", help="Path for input <file>.json")
-    parser.add_argument("--render", type=bool, default=False, help="Render task")
-    args = parser.parse_args()
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--config", type=str, default="", help="Path for input <file>.json")
+#     parser.add_argument("--render", type=bool, default=False, help="Render task")
+#     args = parser.parse_args()
     
-    print("render: ", args.render)
-    isRender = args.render
-    print("config: ", args.config)
-    filepath = args.config
+#     print("render: ", args.render)
+#     isRender = args.render
+#     print("config: ", args.config)
+#     filepath = args.config
     
-    if (len(filepath)==0):
-        print("Πρέπει να συμπληρωθεί η παράμετρος --config <file>.json")
-        exit()
+#     if (len(filepath)==0):
+#         print("Πρέπει να συμπληρωθεί η παράμετρος --config <file>.json")
+#         exit()
 
-    f = open(filepath, "r")
-    example_config = json.load(f)
+#     f = open(filepath, "r")
+#     example_config = json.load(f)
 
-    filepath = example_config["scene_file"]
+#     filepath = example_config["scene_file"]
 
-    scene = load_scene(filepath)
+#     scene = load_scene(filepath)
 
-    frequency = example_config["frequency"]
-    bandwith = example_config["bandwith"]
-    fft_size = example_config["fft_size"]
+#     frequency = example_config["frequency"]
+#     bandwith = example_config["bandwith"]
+#     fft_size = example_config["fft_size"]
     
 
-    #setup enviroment and start simulation
-    rt_calc_diffraction = example_config["rt_calc_diffraction"]
-    rt_max_depth = example_config["rt_max_depth"]
-    rt_max_parallel_links = example_config["rt_max_parallel_links"]
-    est_csi = example_config["est_csi"]
-    verbose = example_config["verbose"]
+#     #setup enviroment and start simulation
+#     rt_calc_diffraction = example_config["rt_calc_diffraction"]
+#     rt_max_depth = example_config["rt_max_depth"]
+#     rt_max_parallel_links = example_config["rt_max_parallel_links"]
+#     est_csi = example_config["est_csi"]
+#     verbose = example_config["verbose"]
 
-    env = SionnaEnv(scene, frequency, bandwith, fft_size,  rt_calc_diffraction, rt_max_depth, rt_max_parallel_links, est_csi, VERBOSE=verbose)
+#     env = SionnaEnv(scene, frequency, bandwith, fft_size,  rt_calc_diffraction, rt_max_depth, rt_max_parallel_links, est_csi, VERBOSE=verbose)
 
 
-    sionnObjects = [] 
+#     sionnObjects = [] 
    
     
 
-    for sionObj in list(example_config["objects"].keys()):
-        print("sionObj: ", sionObj)
-        obj_file_path = example_config["objects"][sionObj]["obj_file_path"]
+#     for sionObj in list(example_config["objects"].keys()):
+#         print("sionObj: ", sionObj)
+#         obj_file_path = example_config["objects"][sionObj]["obj_file_path"]
 
-        put_sionObj = sionnaObject(example_config["objects"][sionObj]["name"],
-                                obj_file_path, 
-                                example_config["objects"][sionObj]["position"]
-                                )
-        print(list(example_config["objects"][sionObj].keys()))
-        if ("custom_material" in list(example_config["objects"][sionObj].keys())):
-            print("!!!! CUSTOM MATERIAL !!!!")
-            update_material_scattering_pattern = None
-            if (example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"] != "None"):
-                update_material_scattering_pattern = example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"]
-            update_material_frequency_update_callback = None
-            if (example_config["objects"][sionObj]["custom_material"]["material_frequency_update_callback"] != "None"):
-                update_material_frequency_update_callback = example_config["objects"][sionObj]["custom_material"]["material_frequency_update_callback"]
+#         put_sionObj = sionnaObject(example_config["objects"][sionObj]["name"],
+#                                 obj_file_path, 
+#                                 example_config["objects"][sionObj]["position"]
+#                                 )
+#         print(list(example_config["objects"][sionObj].keys()))
+#         if ("custom_material" in list(example_config["objects"][sionObj].keys())):
+#             print("!!!! CUSTOM MATERIAL !!!!")
+#             update_material_scattering_pattern = None
+#             if (example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"] != "None"):
+#                 update_material_scattering_pattern = example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"]
+#             update_material_frequency_update_callback = None
+#             if (example_config["objects"][sionObj]["custom_material"]["material_frequency_update_callback"] != "None"):
+#                 update_material_frequency_update_callback = example_config["objects"][sionObj]["custom_material"]["material_frequency_update_callback"]
 
-            put_sionObj.create_custom_material(
-                material_name=example_config["objects"][sionObj]["custom_material"]["material_name"],
-                material_relative_permittivity=example_config["objects"][sionObj]["custom_material"]["material_relative_permittivity"],
-                material_conductivity=example_config["objects"][sionObj]["custom_material"]["material_conductivity"],
-                material_scattering_coefficient=example_config["objects"][sionObj]["custom_material"]["material_scattering_coefficient"],
-                material_xpd_coefficient=example_config["objects"][sionObj]["custom_material"]["material_xpd_coefficient"],
-                material_scattering_pattern=update_material_scattering_pattern,
-                material_frequency_update_callback=update_material_frequency_update_callback,
-                setColor=example_config["objects"][sionObj]["custom_material"]["set_color"]
-            )
+#             put_sionObj.create_custom_material(
+#                 material_name=example_config["objects"][sionObj]["custom_material"]["material_name"],
+#                 material_relative_permittivity=example_config["objects"][sionObj]["custom_material"]["material_relative_permittivity"],
+#                 material_conductivity=example_config["objects"][sionObj]["custom_material"]["material_conductivity"],
+#                 material_scattering_coefficient=example_config["objects"][sionObj]["custom_material"]["material_scattering_coefficient"],
+#                 material_xpd_coefficient=example_config["objects"][sionObj]["custom_material"]["material_xpd_coefficient"],
+#                 material_scattering_pattern=update_material_scattering_pattern,
+#                 material_frequency_update_callback=update_material_frequency_update_callback,
+#                 setColor=example_config["objects"][sionObj]["custom_material"]["set_color"]
+#             )
 
-        sionnObjects.append(put_sionObj)
+#         sionnObjects.append(put_sionObj)
         
     
-    env.load_obj_from_file(sionnObjects, filepath)
+#     env.load_obj_from_file(sionnObjects, filepath)
 
         
 
 
-    env.store_simulation_info()
-    env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
-    env.calculate_channel_state()
-    env.simulate_digital_communication(10)
+#     env.store_simulation_info()
+#     env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
+#     env.calculate_channel_state()
+#     env.simulate_digital_communication(10)
 
         
 
-    env.display_stats()
+#     env.display_stats()
     
-    if (isRender):
-        try:
-            resolution = example_config["resolution"]
-            cameraPos = example_config["camera_positions"]
-            lookAt = example_config["look_at"]
-            simulation_name = example_config["simulation_name"]
-            env.preview_the_scene(resolution, cameraPos, lookAt, simulation_name)
-            print("RENDER DONE")
-        except Exception as e:
-            print(e)
+#     if (isRender):
+#         try:
+#             resolution = example_config["resolution"]
+#             cameraPos = example_config["camera_positions"]
+#             lookAt = example_config["look_at"]
+#             simulation_name = example_config["simulation_name"]
+#             env.preview_the_scene(resolution, cameraPos, lookAt, simulation_name)
+#             print("RENDER DONE")
+#         except Exception as e:
+#             print(e)
 
     
 
