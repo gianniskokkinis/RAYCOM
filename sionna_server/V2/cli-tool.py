@@ -279,9 +279,9 @@ class SionnaEnv:
         lnk_loss = float(-10 * np.log10(tf.reduce_mean(tf.abs(self.h_freq) ** 2).numpy())) # Db
 
         #print channel info 
-        print("Delay: ", lnk_delay)
-        print("Loss: " , lnk_loss)
-        print("Bandwith: ", self.scene.channel_bw)
+        print(f"Delay: {lnk_delay} sec")
+        print(f"Loss: {lnk_loss} sec")
+        print(f"Bandwith: {self.scene.channel_bw} Hz")
         
 
 
@@ -540,14 +540,13 @@ class SionnaEnv:
         #get frequency from the channel
         h_freq = self.h_freq.numpy()
 
-        #test all modulations
-        self.results = {}
+       
 
-        #initialize results for ser
-        
-        
+        #initialize array for ser results
         temp_ser_results = []
+        #initialize array for bit_errors results
         temp_bit_errors_results = []
+        #initialize array for bler results
         temp_block_errors_results = []
         
 
@@ -558,8 +557,10 @@ class SionnaEnv:
 
             
             
-
-            bits = self.binary_source([1, num_bits]) #transmitted bits
+            #create transmitted bits 
+            num_symbols = self.fft_size
+            total_bits = num_symbols * modulation_params["num_bits"]
+            bits = self.binary_source([batch_size, total_bits])
 
 
             #modulation - Mapping
@@ -569,24 +570,26 @@ class SionnaEnv:
                 mapper = Mapper(constellation_type="qam", num_bits_per_symbol=modulation_params["num_bits"])
             
             symbols = mapper(bits)
+            #normalization symbols 
+            symbols_power = tf.cast(tf.reduce_mean(tf.abs(symbols)**2),tf.complex64)
+            symbols = symbols / tf.sqrt(symbols_power)
+            
 
             #channel effects
             symbols_ofdm = tf.signal.fft(tf.cast(symbols, tf.complex64)) #convert symbols to Frequencies Field using FFT    
             symbols_channel = symbols_ofdm * h_freq 
-            signal_power = tf.reduce_mean(tf.abs(symbols_channel)**2)
             awgn_channel = AWGN() #add the AWGN model for realistic noise 
-            bits_per_symbol = modulation_params["num_bits"]
-            no = signal_power / (10**(ebno_db/10))
+            no = 1.0 / ((10**(ebno_db/10)))
             y = awgn_channel((symbols_channel,no)) #add the noise to channel(signal)
 
             #demodulation - demapping
-            y_time = tf.signal.ifft(y) #convert from frequency to time
+            y_time = tf.signal.ifft(y) * np.sqrt(self.fft_size) #convert from frequency to time
             if (modulation_params["type"] == "pam"):
                 demapper = Demapper(demapping_method="app", constellation_type="pam", num_bits_per_symbol=modulation_params["num_bits"])
             else:
                 demapper = Demapper(demapping_method="app", constellation_type="qam", num_bits_per_symbol=modulation_params["num_bits"])
                     
-            llr = demapper([tf.expand_dims(y_time, axis=0), no]) #calculate the llr
+            llr = demapper([y_time,no]) #calculate the llr
             bits_hat = tf.cast(llr>0, tf.float32) #get the received bits
 
                 
@@ -634,23 +637,24 @@ class SionnaEnv:
             for snr in self.snr_values:
 
                 #clear tables for next experiment
-                temp_ser_results = []
-                temp_bit_errors_results = []
-                temp_block_errors_results = []
+                temp_ser_results.clear()
+                temp_bit_errors_results.clear()
+                temp_block_errors_results.clear()
+
 
                 ber, bler = plot_ber[modulation].simulate(
                     mc_fun=simulation,
                     ebno_dbs=[snr],
-                    batch_size=10000,
-                    max_mc_iter=100,
+                    batch_size=1000,
+                    max_mc_iter=10,
                     legend = f"{modulation} at {snr} dB",
                     add_ber=True,
                     add_bler=True,
                     show_fig=False,
                 )
 
-                # print("ber: ",ber)
-                # print("bler: ",bler)
+                # print("BER: ",ber)
+                # print("BLER: ",bler)
                 modulation_params["ber"].append(ber)
                 modulation_params["bler"].append(bler)
                 modulation_params["ser"].append(np.mean(temp_ser_results))
@@ -1133,12 +1137,13 @@ def example1():
     
 
     env.display_stats()
-    
-    # try:
-    #     env.preview_the_scene([480,480],[-1.5,3,6],[4.5,2,1], "example1.jpg")
-    #     print("!!! RENDER DONE !!!")
-    # except Exception as e:
-    #     print(e)
+
+    #render 
+    try:
+        env.preview_the_scene([1280,720],[-1.5,3,6],[4.5,2,1], "example1.jpg")
+        print("!!! RENDER DONE !!!")
+    except Exception as e:
+        print(e)
     
     
 
@@ -1214,23 +1219,23 @@ def example2():
 
     
     #rendering 
-    # try:
-    #     resolution = [480,480]
+    try:
+        resolution = [1280,720]
         
-    #     #render first room
-    #     cameraPos = cameraPositions["room1"]["cameraPos"]
-    #     lookAt = cameraPositions["room1"]["lookAt"]
-    #     env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
+        #render first room
+        cameraPos = cameraPositions["room1"]["cameraPos"]
+        lookAt = cameraPositions["room1"]["lookAt"]
+        env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
         
-    # #     #render second room
-    # #     cameraPos = cameraPositions["room2"]["cameraPos"]
-    # #     lookAt = cameraPositions["room2"]["lookAt"]
-    # #     env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
+        # #render second room
+        # cameraPos = cameraPositions["room2"]["cameraPos"]
+        # lookAt = cameraPositions["room2"]["lookAt"]
+        # env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
         
 
-    #     print("!!! RENDER DONE !!!")
-    # except Exception as e:
-    #     print(e)
+        print("!!! RENDER DONE !!!")
+    except Exception as e:
+        print(e)
     
 
 def example3():
@@ -1295,10 +1300,7 @@ def example3():
     #     print(e)
         
 
-        
-def create_example():
-    pass
-
+     
 
     
 #Test examples 
@@ -1314,12 +1316,10 @@ if __name__ == '__main__':
     parser.add_argument("--est_csi", help="Whether to estimate complex CSI per OFDM subcarrier", action='store_true')
     parser.add_argument("--verbose", help="Whether to run in verbose mode", action='store_true')
     
-    #open input file here with args 
-
     
     args = parser.parse_args()
 
-    print("HELLO SIONNA!!!")
+    #print("HELLO SIONNA!!!")
 
     example1()
 
