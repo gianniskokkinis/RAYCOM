@@ -273,14 +273,14 @@ class SionnaEnv:
         a_paths, tau_paths = paths.cir()  
 
         # Calculate delay
-        lnk_delay = int(round(np.min(self.tau[self.tau >= 0] * 1e9), 0)) #ns
+        self.lnk_delay = int(round(np.min(self.tau[self.tau >= 0] * 1e9), 0)) #ns
 
         # Calculate loss
-        lnk_loss = float(-10 * np.log10(tf.reduce_mean(tf.abs(self.h_freq) ** 2).numpy())) # Db
+        self.lnk_loss = float(-10 * np.log10(tf.reduce_mean(tf.abs(self.h_freq) ** 2).numpy())) # Db
 
         #print channel info 
-        print(f"Delay: {lnk_delay} sec")
-        print(f"Loss: {lnk_loss} sec")
+        print(f"Delay: {self.lnk_delay} sec")
+        print(f"Loss: {self.lnk_loss} sec")
         print(f"Bandwith: {self.scene.channel_bw} Hz")
         
 
@@ -474,18 +474,13 @@ class SionnaEnv:
         
         
 
-    def simulate_digital_communication(self, update_ebno_db):
+    def simulate_digital_communication(self,update_batch_size, update_iter):
 
         self.snr_values = []
         
         #initialize snr 
         self.snr_values = np.linspace(0,30,31)
         
-        # self.snr_values = np.concatenate([
-        #     np.linspace(0,5,10), #High resolution for low SNR
-        #     np.linspace(5,15,10), #medium resolution
-        #     np.linspace(15,30,6) #low resolution for high SNR
-        # ])
 
         
         
@@ -502,8 +497,7 @@ class SionnaEnv:
                 "ber" : [],
                 "bler" : [],
                 "ser" : [],
-                "bit_errors" : [],
-                "block_errors" : []
+                "bit_errors" : []
             },
 
             "4-pam" : {
@@ -512,8 +506,7 @@ class SionnaEnv:
                 "ber" : [],
                 "bler" : [],
                 "ser" : [],
-                "bit_errors" : [],
-                "block_errors" : []
+                "bit_errors" : []
             },
             
             "16-qam" : {
@@ -522,8 +515,7 @@ class SionnaEnv:
                 "ber" : [],
                 "bler" : [],
                 "ser" : [],
-                "bit_errors" : [],
-                "block_errors" : []
+                "bit_errors" : []
             },
 
             "64-qam" : {
@@ -532,8 +524,7 @@ class SionnaEnv:
                 "ber" : [],
                 "bler" : [],
                 "ser" : [],
-                "bit_errors" : [],
-                "block_errors" : []
+                "bit_errors" : []
             }            
         }
         
@@ -542,12 +533,8 @@ class SionnaEnv:
 
        
 
-        #initialize array for ser results
-        temp_ser_results = []
         #initialize array for bit_errors results
         temp_bit_errors_results = []
-        #initialize array for bler results
-        temp_block_errors_results = []
         
 
 
@@ -557,11 +544,18 @@ class SionnaEnv:
 
             
             
-            #create transmitted bits 
+            
+            block_size = 100 
             num_symbols = self.fft_size
             total_bits = num_symbols * modulation_params["num_bits"]
-            bits = self.binary_source([batch_size, total_bits])
+            
+            
+           
 
+
+            #create transmitted bits
+            bits = self.binary_source([batch_size, total_bits])
+            
 
             #modulation - Mapping
             if (modulation_params["type"] == "pam"):
@@ -593,24 +587,9 @@ class SionnaEnv:
             bits_hat = tf.cast(llr>0, tf.float32) #get the received bits
 
                 
-            #calculate metrics 
-            ser = compute_ser(symbols, y_time) #calculate Symbol Error Rate
-            temp_ser_results.append(np.mean(ser))
-
             #calculate Bitwise Mutual Information 
             bit_errors = count_errors(bits, bits_hat)
             temp_bit_errors_results.append(np.mean(bit_errors))
-
-            #calculate Block Errors
-            block_errors = count_block_errors(bits, bits_hat)
-            temp_block_errors_results.append(np.mean(block_errors))
-            
-            
-            
-            
-
-
-
 
             
             return bits,bits_hat
@@ -636,17 +615,15 @@ class SionnaEnv:
 
             for snr in self.snr_values:
 
-                #clear tables for next experiment
-                temp_ser_results.clear()
+                #clear table for next experiment
                 temp_bit_errors_results.clear()
-                temp_block_errors_results.clear()
 
 
                 ber, bler = plot_ber[modulation].simulate(
                     mc_fun=simulation,
                     ebno_dbs=[snr],
-                    batch_size=1000,
-                    max_mc_iter=10,
+                    batch_size=update_batch_size,
+                    max_mc_iter=update_iter,
                     legend = f"{modulation} at {snr} dB",
                     add_ber=True,
                     add_bler=True,
@@ -657,10 +634,8 @@ class SionnaEnv:
                 # print("BLER: ",bler)
                 modulation_params["ber"].append(ber)
                 modulation_params["bler"].append(bler)
-                modulation_params["ser"].append(np.mean(temp_ser_results))
                 modulation_params["bit_errors"].append(np.mean(temp_bit_errors_results))
-                modulation_params["block_errors"].append(np.mean(temp_block_errors_results))
-               
+                
                 
                 
                 
@@ -688,6 +663,7 @@ class SionnaEnv:
     def display_stats(self):
         
         mat.use("Qt5Agg")
+        
 
         plt.figure(figsize=(15,10))
         plt.title("Channel Informations")
@@ -774,6 +750,27 @@ class SionnaEnv:
             scroll_area.show()
             
 
+        plt.tight_layout()
+        plt.show()
+
+        #display channel info 
+        plt.subplot(2,2,4)
+        plt.axis("off")
+        text = "---- Channel Informations ----\n"+"Delay: "+self.lnk_delay+"sec\n"+"Loss: "+self.lnk_loss+"sec\n"+"Bandwith: "+self.scene.channel_bw+"Hz\n"+"Coherence Bandwith: "+self.coherence_bandwith+"Hz\n"
+        plt.text(
+                0.5,
+                0.5,
+                info_text,
+                ha="center",
+                va="center",
+                fontsize=10,
+                bbox=dict(
+                    facecolor = "white",
+                    edgecolor = "black",
+                    boxstyle = "round,pad=0.5",
+                    alpha=0.8
+                )
+            )
         plt.tight_layout()
         plt.show()
 
@@ -883,21 +880,21 @@ class SionnaEnv:
         
 
 
-        #plot ser
-        plt.figure(figsize=(15,10))
-        plt.title("Symbol Error Rate")
-        pos = 1
-        for mod in self.modulations.keys():
-            plt.subplot(2,4,pos)
-            display_values = self.modulations[mod]["ser"]
-            plt.semilogy(self.snr_values, display_values, "-o")
-            plt.title(f"{mod} modulation SER")
-            plt.xlabel("Eb/No (dB)")
-            plt.ylabel("SER")
-            plt.grid(True)
-            pos+=1
-        plt.tight_layout()
-        plt.show()
+        # #plot ser
+        # plt.figure(figsize=(15,10))
+        # plt.title("Symbol Error Rate")
+        # pos = 1
+        # for mod in self.modulations.keys():
+        #     plt.subplot(2,4,pos)
+        #     display_values = self.modulations[mod]["ser"]
+        #     plt.semilogy(self.snr_values, display_values, "-o")
+        #     plt.title(f"{mod} modulation SER")
+        #     plt.xlabel("Eb/No (dB)")
+        #     plt.ylabel("SER")
+        #     plt.grid(True)
+        #     pos+=1
+        # plt.tight_layout()
+        # plt.show()
 
 
         #plot Bits Error 
@@ -917,21 +914,21 @@ class SionnaEnv:
         plt.show()
 
         
-        #plot Block Error 
-        plt.figure(figsize=(15,10))
-        plt.title("Block Error")
-        pos = 1
-        for mod in self.modulations.keys():
-            plt.subplot(2,4,pos)
-            display_values = self.modulations[mod]["block_errors"]
-            plt.semilogy(self.snr_values, display_values, "-o")
-            plt.title(f"{mod} modulation Block Error")
-            plt.xlabel("Eb/No (dB)")
-            plt.ylabel("Block Error")
-            plt.grid(True)
-            pos+=1
-        plt.tight_layout()
-        plt.show()
+        # #plot Block Error 
+        # plt.figure(figsize=(15,10))
+        # plt.title("Block Error")
+        # pos = 1
+        # for mod in self.modulations.keys():
+        #     plt.subplot(2,4,pos)
+        #     display_values = self.modulations[mod]["block_errors"]
+        #     plt.semilogy(self.snr_values, display_values, "-o")
+        #     plt.title(f"{mod} modulation Block Error")
+        #     plt.xlabel("Eb/No (dB)")
+        #     plt.ylabel("Block Error")
+        #     plt.grid(True)
+        #     pos+=1
+        # plt.tight_layout()
+        # plt.show()
         
         
         
@@ -1132,7 +1129,7 @@ def example1():
     env.store_simulation_info()
     env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
     env.calculate_channel_state()
-    env.simulate_digital_communication(10)
+    env.simulate_digital_communication(1000,100)
 
     
 
@@ -1157,7 +1154,7 @@ def example2():
         },
 
         "room2" : { 
-            "cameraPos" : [2,6,8.5] ,
+            "cameraPos" : [4.3,6,3] ,
             "lookAt" : [4,1,3]
         }
         
@@ -1211,11 +1208,11 @@ def example2():
     env.store_simulation_info()
     env.create_communication_link("Laptop", [6,4,3], "Router", [5,-7,3])
     env.calculate_channel_state()
-    env.simulate_digital_communication(10)
+    # env.simulate_digital_communication(1000,100)
 
     
 
-    env.display_stats()
+    # env.display_stats()
 
     
     #rendering 
@@ -1223,14 +1220,14 @@ def example2():
         resolution = [1280,720]
         
         #render first room
-        cameraPos = cameraPositions["room1"]["cameraPos"]
-        lookAt = cameraPositions["room1"]["lookAt"]
-        env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
+        # cameraPos = cameraPositions["room1"]["cameraPos"]
+        # lookAt = cameraPositions["room1"]["lookAt"]
+        # env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
         
-        # #render second room
-        # cameraPos = cameraPositions["room2"]["cameraPos"]
-        # lookAt = cameraPositions["room2"]["lookAt"]
-        # env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
+        #render second room
+        cameraPos = cameraPositions["room2"]["cameraPos"]
+        lookAt = cameraPositions["room2"]["lookAt"]
+        env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
         
 
         print("!!! RENDER DONE !!!")
@@ -1242,17 +1239,17 @@ def example3():
 
     cameraPositions = { 
         "place1" : {
-            "cameraPos" : [-34,-132,100],
+            "cameraPos" : [34,-132,51.5],
             "lookAt" : [-26,37,0]
         },
 
         "place2" : { 
-            "cameraPos" : [-78,-165,30] ,
-            "lookAt" : [-65,-143,0]
+            "cameraPos" : [42.5,-380,62.7] ,
+            "lookAt" : [-26,37,0]
         },
 
         "place3" : { 
-            "cameraPos" : [-4.8,-83.91,65.8] ,
+            "cameraPos" : [-175,-150,20] ,
             "lookAt" : [-26,37,0]
         }
     }
@@ -1282,22 +1279,22 @@ def example3():
     env.load_obj_from_file(objectsToAdd, filepath)
     
     env.store_simulation_info()
-    env.create_communication_link("Smartphone", smartphonePositions["pos3"], "TelTower", [0,10,50])
+    env.create_communication_link("Smartphone", smartphonePositions["pos2"], "TelTower", [0,10,50])
     env.calculate_channel_state()
-    env.simulate_digital_communication(10)
+    # env.simulate_digital_communication(1000,10)
 
     
 
-    env.display_stats()
+    # env.display_stats()
 
-    # try:
-    #     resolution = [480,480]
-    #     cameraPos = cameraPositions["place3"]["cameraPos"]
-    #     lookAt = cameraPositions["place3"]["lookAt"]
-    #     env.preview_the_scene(resolution, cameraPos, lookAt, "example3.jpg")
-    #     print("!!! RENDER DONE !!!")
-    # except Exception as e:
-    #     print(e)
+    try:
+        resolution = [1280,720]
+        cameraPos = cameraPositions["place2"]["cameraPos"]
+        lookAt = cameraPositions["place2"]["lookAt"]
+        env.preview_the_scene(resolution, cameraPos, lookAt, "example3.jpg")
+        print("!!! RENDER DONE !!!")
+    except Exception as e:
+        print(e)
         
 
      
@@ -1321,9 +1318,9 @@ if __name__ == '__main__':
 
     #print("HELLO SIONNA!!!")
 
-    example1()
+    #example1()
 
-    #example2() 
+    example2() 
 
     #example3()   
 
@@ -1411,7 +1408,7 @@ if __name__ == '__main__':
 #     env.store_simulation_info()
 #     env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
 #     env.calculate_channel_state()
-#     env.simulate_digital_communication(10)
+#     env.simulate_digital_communication(example_config["batch_size"],example_config["iter"])
 
         
 

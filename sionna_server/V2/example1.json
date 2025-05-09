@@ -18,7 +18,10 @@
     "look_at" : [4.5,2,1],
     "resolution": [480,480],
     "render_output" : "example1.jpg",
-    "eb_no" : 10,
+    "batch_size" : 1000,
+    "iter": 10,
+
+
     "objects" : {
 
         "barrier-wall" : {
