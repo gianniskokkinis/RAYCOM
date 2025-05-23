@@ -316,11 +316,11 @@ class SionnaEnv:
         
         
         
+        #get the previous materials to avoid duplicate ID
         checkList = []
-
-       
+        for scObj in self.scene._scene_objects.values():
+            checkList.append(scObj.radio_material._name)
           
-
         
         fixLines = []
         sionnaObjectsWithCustomMaterials = []
@@ -338,7 +338,6 @@ class SionnaEnv:
                         #check here if itu material from sionna list
                         if (sionnaObj.get_material() in list(self.scene.radio_materials.keys())):
                             checkList.append(sionnaObj.get_material())
-                            #print("ADD NEW MATERIAL : ",sionnaObj.get_material())
                             fixLines.append("\n")
                             fixLines.append(f'\t<bsdf type="twosided" id="mat-{sionnaObj.get_material()}">\n')
                             fixLines.append('\t\t<bsdf type="diffuse">\n')
@@ -1333,13 +1332,14 @@ if __name__ == '__main__':
     parser.add_argument("--render", type=bool, default=False, help="Render task")
     args = parser.parse_args()
     
-    print("render: ", args.render)
+    
     isRender = args.render
+    print("render: ", args.render)
     print("config: ", args.config)
     filepath = args.config
     
     if (len(filepath)==0):
-        print("Πρέπει να συμπληρωθεί η παράμετρος --config <file>.json")
+        print("Parameter is missing:  --config <file>.json")
         exit()
 
     f = open(filepath, "r")
@@ -1366,41 +1366,54 @@ if __name__ == '__main__':
 
     sionnObjects = [] 
    
+
+    if ("objects" in list(example_config.keys())):
+
+        for sionObj in list(example_config["objects"].keys()):
+            print("sionObj: ", sionObj)
+            obj_file_path = example_config["objects"][sionObj]["obj_file_path"]
+
+            put_sionObj = sionnaObject(example_config["objects"][sionObj]["name"],
+                                    obj_file_path, 
+                                    example_config["objects"][sionObj]["position"]
+                                    )
+            #print(list(example_config["objects"][sionObj].keys()))
+            if ("custom_material" in list(example_config["objects"][sionObj].keys())):
+                print("!!!! CUSTOM MATERIAL !!!!")
+                update_material_scattering_pattern = None
+                if (example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"] != "None"):
+                    update_material_scattering_pattern = example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"]
+                update_material_frequency_update_callback = None
+                if (example_config["objects"][sionObj]["custom_material"]["material_frequency_update_callback"] != "None"):
+                    update_material_frequency_update_callback = example_config["objects"][sionObj]["custom_material"]["material_frequency_update_callback"]
+
+                put_sionObj.create_custom_material(
+                    material_name=example_config["objects"][sionObj]["custom_material"]["material_name"],
+                    material_relative_permittivity=example_config["objects"][sionObj]["custom_material"]["material_relative_permittivity"],
+                    material_conductivity=example_config["objects"][sionObj]["custom_material"]["material_conductivity"],
+                    material_scattering_coefficient=example_config["objects"][sionObj]["custom_material"]["material_scattering_coefficient"],
+                    material_xpd_coefficient=example_config["objects"][sionObj]["custom_material"]["material_xpd_coefficient"],
+                    material_scattering_pattern=update_material_scattering_pattern,
+                    material_frequency_update_callback=update_material_frequency_update_callback,
+                    setColor=example_config["objects"][sionObj]["custom_material"]["set_color"]
+                )
+            elif ("material" in list(example_config["objects"][sionObj].keys())):
+                put_sionObj.set_sionna_material(example_config["objects"][sionObj]["material"])
+            else:
+                print("No material has been declared in your new items")
+                exit()
+
+            sionnObjects.append(put_sionObj)
+
+        
+        env.load_obj_from_file(sionnObjects, filepath)
     
+       
+        
 
-    for sionObj in list(example_config["objects"].keys()):
-        print("sionObj: ", sionObj)
-        obj_file_path = example_config["objects"][sionObj]["obj_file_path"]
-
-        put_sionObj = sionnaObject(example_config["objects"][sionObj]["name"],
-                                obj_file_path, 
-                                example_config["objects"][sionObj]["position"]
-                                )
-        print(list(example_config["objects"][sionObj].keys()))
-        if ("custom_material" in list(example_config["objects"][sionObj].keys())):
-            print("!!!! CUSTOM MATERIAL !!!!")
-            update_material_scattering_pattern = None
-            if (example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"] != "None"):
-                update_material_scattering_pattern = example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"]
-            update_material_frequency_update_callback = None
-            if (example_config["objects"][sionObj]["custom_material"]["material_frequency_update_callback"] != "None"):
-                update_material_frequency_update_callback = example_config["objects"][sionObj]["custom_material"]["material_frequency_update_callback"]
-
-            put_sionObj.create_custom_material(
-                material_name=example_config["objects"][sionObj]["custom_material"]["material_name"],
-                material_relative_permittivity=example_config["objects"][sionObj]["custom_material"]["material_relative_permittivity"],
-                material_conductivity=example_config["objects"][sionObj]["custom_material"]["material_conductivity"],
-                material_scattering_coefficient=example_config["objects"][sionObj]["custom_material"]["material_scattering_coefficient"],
-                material_xpd_coefficient=example_config["objects"][sionObj]["custom_material"]["material_xpd_coefficient"],
-                material_scattering_pattern=update_material_scattering_pattern,
-                material_frequency_update_callback=update_material_frequency_update_callback,
-                setColor=example_config["objects"][sionObj]["custom_material"]["set_color"]
-            )
-
-        sionnObjects.append(put_sionObj)
         
     
-    env.load_obj_from_file(sionnObjects, filepath)
+    
 
         
 
