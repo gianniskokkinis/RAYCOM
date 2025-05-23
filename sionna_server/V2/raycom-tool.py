@@ -53,7 +53,6 @@ from sionna.utils.plotting import *
 from sionna.mapping import *
 import matplotlib.pyplot as plt
 import matplotlib as mat
-from IPython.display import Image,display
 from PyQt5.QtWidgets import QScrollArea, QLabel, QVBoxLayout, QWidget
 import time 
 import json
@@ -316,7 +315,7 @@ class SionnaEnv:
         
         
         
-        #get the previous materials to avoid duplicate ID
+        #Get materials from the current scene to skip creating them again
         checkList = []
         for scObj in self.scene._scene_objects.values():
             checkList.append(scObj.radio_material._name)
@@ -1329,7 +1328,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="", help="Path for input <file>.json")
-    parser.add_argument("--render", type=bool, default=False, help="Render task")
+    parser.add_argument("--render", action="store_true", default=False, help="Render task")
     args = parser.parse_args()
     
     
