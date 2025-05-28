@@ -1,6 +1,6 @@
 import os
-# os.environ['LD_LIBRARY_PATH'] = '/usr/lib/llvm-13/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
-# os.environ['DRJIT_LIBLLVM_PATH'] = '/usr/lib/llvm-13/lib/libLLVM.so'
+os.environ['LD_LIBRARY_PATH'] = '/usr/lib/llvm-13/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
+os.environ['DRJIT_LIBLLVM_PATH'] = '/usr/lib/llvm-13/lib/libLLVM.so'
 # os.environ['MI_DEFAULT_VARIANT'] = 'llvm_ad_rgb'
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
@@ -969,7 +969,7 @@ class SionnaEnv:
 
 
 
-def example1():
+def example1(isRender):
 
 
     materialsToCheck = {
@@ -1126,16 +1126,17 @@ def example1():
 
     env.display_stats()
 
-    #render 
-    try:
-        env.preview_the_scene([1280,720],[-1.5,3,6],[4.5,2,1], "example1.jpg")
-        print("!!! RENDER DONE !!!")
-    except Exception as e:
-        print(e)
+    if (isRender):
+        #render 
+        try:
+            env.preview_the_scene([1280,720],[-1.5,3,6],[4.5,2,1], "example1.jpg")
+            print("!!! RENDER DONE !!!")
+        except Exception as e:
+            print(e)
     
     
 
-def example2():
+def example2(isRender):
 
 
     cameraPositions = { 
@@ -1205,28 +1206,40 @@ def example2():
 
     env.display_stats()
 
-    
-    #rendering 
-    try:
-        resolution = [1280,720]
-        
-        #render first room
-        # cameraPos = cameraPositions["room1"]["cameraPos"]
-        # lookAt = cameraPositions["room1"]["lookAt"]
-        # env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
-        
-        #render second room
-        cameraPos = cameraPositions["room2"]["cameraPos"]
-        lookAt = cameraPositions["room2"]["lookAt"]
-        env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
-        
+    if (isRender):
+        #rendering 
+        try:
+            resolution = [1280,720]
+            
+            #render first room
+            cameraPos = cameraPositions["room1"]["cameraPos"]
+            lookAt = cameraPositions["room1"]["lookAt"]
+            env.preview_the_scene(resolution, cameraPos, lookAt, "example2_1.jpg")
+            
 
-        print("!!! RENDER DONE !!!")
-    except Exception as e:
-        print(e)
+
+            print("!!! RENDER DONE !!!")
+        except Exception as e:
+            print(e)
+
+
+        try:
+            resolution = [1280,720]
+
+            #render second room
+            cameraPos = cameraPositions["room2"]["cameraPos"]
+            lookAt = cameraPositions["room2"]["lookAt"]
+            env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
+            
+
+            print("!!! RENDER DONE !!!")
+        except Exception as e:
+            print(e)
+
+        
     
 
-def example3():
+def example3(isRender):
 
     cameraPositions = { 
         "place1" : {
@@ -1259,34 +1272,116 @@ def example3():
     bandwith = 20e6
     fft_size = 64
 
+    """
+    POSITION 1
+    
+    """
+
+    print("---------------------------------- POS OUTSIDE OTE -------------")
+
     #setup enviroment and start simulation
-    env = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
+    env1 = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
 
     #add the antenna
     obj_file_path = "./obj/ex3/Antenna.obj"
     sionObj = sionnaObject("Antenna",obj_file_path, [0,0,0])
     sionObj.set_sionna_material("itu_metal")
     objectsToAdd = [sionObj]
-    env.load_obj_from_file(objectsToAdd, filepath)
+    env1.load_obj_from_file(objectsToAdd, filepath)
     
-    env.store_simulation_info()
-    env.create_communication_link("Smartphone", smartphonePositions["pos2"], "TelTower", [0,10,50])
-    env.calculate_channel_state()
-    env.simulate_digital_communication(1000,10)
+    env1.store_simulation_info()
+    env1.create_communication_link("Smartphone", smartphonePositions["pos1"], "TelTower", [0,10,50])
+    env1.calculate_channel_state()
+    env1.simulate_digital_communication(1000,10)
 
     
 
-    env.display_stats()
+    env1.display_stats()
 
-    try:
-        resolution = [1280,720]
-        cameraPos = cameraPositions["place2"]["cameraPos"]
-        lookAt = cameraPositions["place2"]["lookAt"]
-        env.preview_the_scene(resolution, cameraPos, lookAt, "example3.jpg")
-        print("!!! RENDER DONE !!!")
-    except Exception as e:
-        print(e)
-        
+    if (isRender):
+        try:
+            resolution = [1280,720]
+            cameraPos = cameraPositions["place1"]["cameraPos"]
+            lookAt = cameraPositions["place1"]["lookAt"]
+            env1.preview_the_scene(resolution, cameraPos, lookAt, "example3_1.jpg")
+            print("!!! RENDER DONE !!!")
+        except Exception as e:
+            print(e)
+            
+    
+    """
+    POSITION 2
+    
+    """
+
+    print("---------------------------------- POS OUTSIDE NOMARXIA -------------")
+
+    #setup enviroment and start simulation
+    env2 = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
+
+    #add the antenna
+    obj_file_path = "./obj/ex3/Antenna.obj"
+    sionObj = sionnaObject("Antenna",obj_file_path, [0,0,0])
+    sionObj.set_sionna_material("itu_metal")
+    objectsToAdd = [sionObj]
+    env2.load_obj_from_file(objectsToAdd, filepath)
+    
+    env2.store_simulation_info()
+    env2.create_communication_link("Smartphone", smartphonePositions["pos2"], "TelTower", [0,10,50])
+    env2.calculate_channel_state()
+    env2.simulate_digital_communication(1000,10)
+
+    
+
+    env2.display_stats()
+
+    if (isRender):
+        try:
+            resolution = [1280,720]
+            cameraPos = cameraPositions["place2"]["cameraPos"]
+            lookAt = cameraPositions["place2"]["lookAt"]
+            env2.preview_the_scene(resolution, cameraPos, lookAt, "example3_2.jpg")
+            print("!!! RENDER DONE !!!")
+        except Exception as e:
+            print(e)
+            
+    """
+    POSITION 3
+    
+    """
+
+    print("---------------------------------- POS AGORA -------------")
+
+    #setup enviroment and start simulation
+    env3 = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
+
+    #add the antenna
+    obj_file_path = "./obj/ex3/Antenna.obj"
+    sionObj = sionnaObject("Antenna",obj_file_path, [0,0,0])
+    sionObj.set_sionna_material("itu_metal")
+    objectsToAdd = [sionObj]
+    env3.load_obj_from_file(objectsToAdd, filepath)
+    
+    env3.store_simulation_info()
+    env3.create_communication_link("Smartphone", smartphonePositions["pos3"], "TelTower", [0,10,50])
+    env3.calculate_channel_state()
+    env3.simulate_digital_communication(1000,10)
+
+    
+
+    env3.display_stats()
+
+    if (isRender):
+        try:
+            resolution = [1280,720]
+            cameraPos = cameraPositions["place3"]["cameraPos"]
+            lookAt = cameraPositions["place3"]["lookAt"]
+            env3.preview_the_scene(resolution, cameraPos, lookAt, "example3_3.jpg")
+            print("!!! RENDER DONE !!!")
+        except Exception as e:
+            print(e)
+            
+    
 
      
 
@@ -1340,20 +1435,21 @@ if __name__ == '__main__':
     isRunExample1 = args.example1
     isRunExample2 = args.example2
     isRunExample3 = args.example3
+    isRender = args.render
+    print("Render: ", args.render)
 
     if (isRunExample1):
-        example1()
+        example1(isRender)
         exit()
     elif (isRunExample2):
-        example2()
+        example2(isRender)
         exit()
     elif (isRunExample3):
-        example3()
+        example3(isRender)
         exit()
         
     
-    isRender = args.render
-    print("Render: ", args.render)
+    
     print("Config: ", args.config)
     filepath = args.config
     

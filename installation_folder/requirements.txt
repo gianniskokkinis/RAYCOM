@@ -5,3 +5,4 @@ tensorflow==2.10.1
 mitsuba==3.3.0
 sionna==0.17.0
 trimesh==4.6.10
+pyqt5==5.15.11
