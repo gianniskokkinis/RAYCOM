@@ -9,16 +9,13 @@ os.environ['QT_QPA_PLATFORM'] = 'xcb'
 # print("DRJIT_LIBLLVM_PATH:", os.environ.get('DRJIT_LIBLLVM_PATH'))
 
 import argparse
-import math
 
-# ZMQ, PB
-import zmq
-import message_pb2
+
 
 # Sionna
 import os
 
-from commons import *
+
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
@@ -136,11 +133,6 @@ class SionnaEnv:
         self.rt_max_parallel_links = rt_max_parallel_links
         self.est_csi = est_csi
         self.VERBOSE = VERBOSE
-        self.node_info_dict = {}
-        self.last_placed_nodes = [] # name of TX/RX placed during last channel computation
-        self.pos_velo_cache = dict()
-        #counter for packets here
-        self.packet_counter = 0
         self.scene = updateScene
         self.frequency = updateFrequency
         self.channel_bw = updateBandwith
@@ -149,7 +141,6 @@ class SionnaEnv:
         self.scene.frequency = updateFrequency
         self.scene.channel_bw = updateBandwith
         self.scene.fft_size = updateFft_size
-        self.new_object_id=1 #this is about new objects
         self.paths=[]
         
 
@@ -321,10 +312,10 @@ class SionnaEnv:
             checkList.append(scObj.radio_material._name)
           
         
-        fixLines = []
-        sionnaObjectsWithCustomMaterials = []
-        customMaterialsCheck = []
-        convertedPaths = []
+        fixLines = [] #to add specific lines to xml 
+        sionnaObjectsWithCustomMaterials = [] #objects with custom materials 
+        customMaterialsCheck = [] #to avoid double initialize custom materials to scene 
+        convertedPaths = [] #contains the path of *.stl which we are gonna convert these
         f = open(xml_file_path, 'r')
         for line in f:
 
@@ -395,7 +386,7 @@ class SionnaEnv:
                         fixLines.append(f'\t<shape type="obj" id="mesh-{sionnaObj.get_name()}">\n')
 
                         #case need convert
-                        print("extension: ", sionnaObj.get_objFilePath().split("/")[-1].split(".")[1]) #TEST
+                        #print("extension: ", sionnaObj.get_objFilePath().split("/")[-1].split(".")[1]) #TEST
                         if (sionnaObj.get_objFilePath().split("/")[-1].split(".")[1] != "obj"):
                             path = self.convert_stl_to_obj(sionnaObj.get_objFilePath())
                             convertedPaths.append(path)
@@ -543,7 +534,7 @@ class SionnaEnv:
             
             
             
-            block_size = 100 
+            #initialize bits
             num_symbols = self.fft_size
             total_bits = num_symbols * modulation_params["num_bits"]
             
@@ -562,6 +553,8 @@ class SionnaEnv:
                 mapper = Mapper(constellation_type="qam", num_bits_per_symbol=modulation_params["num_bits"])
             
             symbols = mapper(bits)
+
+            
             #normalization symbols 
             symbols_power = tf.cast(tf.reduce_mean(tf.abs(symbols)**2),tf.complex64)
             symbols = symbols / tf.sqrt(symbols_power)
@@ -609,7 +602,7 @@ class SionnaEnv:
             
             print(f"\n\n{modulation} modulation: ")
 
-            num_bits = self.fft_size * modulation_params['num_bits']
+            
 
             for snr in self.snr_values:
 
@@ -697,19 +690,19 @@ class SionnaEnv:
         plt.ylabel("Amplitude")
         plt.grid(True)
 
-        if (len(display_delays)>0):#case if doesn't exist 
+        if (len(display_delays)>0):#case small values
             max_delay = np.max(display_delays) #take the max limit 
             min_limit = -0.01*max_delay
             max_limit = 1.01*max_delay
             plt.xlim([min_limit, max_limit])
         
 
-        #need plot for coherence
+        
 
 
 
 
-        #add legend box with objects and materials 
+        #legend box with objects and materials 
         displayList = []
         for obj in self.scene._scene_objects.values():
             displayList.append(f'{obj._name} : {obj._radio_material._name}')
@@ -754,7 +747,7 @@ class SionnaEnv:
         #display channel info 
         plt.subplot(2,2,4)
         plt.axis("off")
-        text = "---- Channel Informations ----\n"+"Delay: "+self.lnk_delay+"sec\n"+"Loss: "+self.lnk_loss+"sec\n"+"Bandwith: "+self.scene.channel_bw+"Hz\n"+"Coherence Bandwith: "+self.coherence_bandwith+"Hz\n"
+        info_text = "---- Channel Informations ----\n"+"Delay: "+str(self.lnk_delay)+"sec\n"+"Loss: "+str(self.lnk_loss)+"sec\n"+"Bandwith: "+str(self.scene.channel_bw)+"Hz\n"+"Coherence Bandwith: "+str(self.coherence_bandwith)+"Hz\n"
         plt.text(
                 0.5,
                 0.5,
@@ -1024,7 +1017,7 @@ def example1():
     }
 
     #initialize scene
-    filepath = "./../models/simple_room/simple_room.xml"
+    filepath = "./scenes/ex1/simple_room.xml"
     scene = load_scene(filepath)
     # scene = load_scene(sionna.rt.scene.simple_street_canyon_with_cars)
     
@@ -1034,7 +1027,7 @@ def example1():
     fft_size = 64
 
     #setup enviroment and start simulation
-    env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
+    env = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
     
 
     
@@ -1045,7 +1038,7 @@ def example1():
 
     
     #add objects 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall.stl"
+    obj_file_path = "./obj/ex1/barrier_wall.stl"
     sionObj = sionnaObject("barrier-wall",obj_file_path,[3,2.00469,0.422312])
 
     # sionObj.set_sionna_material("itu_brick")
@@ -1062,7 +1055,7 @@ def example1():
 
     objectsToAdd.append(sionObj)
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall2.stl"
+    obj_file_path = "./obj/ex1/barrier_wall2.stl"
     sionObj = sionnaObject("barrier-wall-2",obj_file_path,[3,2.00469,1.90484])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
@@ -1081,7 +1074,7 @@ def example1():
     objectsToAdd.append(sionObj)
 
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall3.stl"
+    obj_file_path = "./obj/ex1/barrier_wall3.stl"
     sionObj = sionnaObject("barrier-wall-3",obj_file_path, [3,0.936904,1.2271])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
@@ -1099,7 +1092,7 @@ def example1():
 
     objectsToAdd.append(sionObj)
 
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/barrier_wall/STL_FILES/barrier_wall4.stl"
+    obj_file_path = "./obj/ex1/barrier_wall4.stl"
     sionObj = sionnaObject("barrier-wall-4",obj_file_path, [3,3.34588,1.2271])
     # sionObj.set_sionna_material("itu_brick")
     sionObj.create_custom_material(
@@ -1127,7 +1120,7 @@ def example1():
     env.store_simulation_info()
     env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
     env.calculate_channel_state()
-    env.simulate_digital_communication(1000,100)
+    env.simulate_digital_communication(1000,10)
 
     
 
@@ -1174,7 +1167,7 @@ def example2():
     # print("room1 -> cameraPos : ", cameraPositions["room1"]["cameraPos"])
     # print("room1 -> lookAt : ", cameraPositions["room1"]["lookAt"])
 
-    filepath = "./../models/futuristic_apartment/Futuristic_Apartment.xml"
+    filepath = "./scenes/ex2/Futuristic_Apartment.xml"
     scene = load_scene(filepath)
     
     frequency = 2.437e9
@@ -1182,10 +1175,10 @@ def example2():
     fft_size = 64
 
     #setup enviroment and start simulation
-    env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
+    env = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
     
     #add mirror to the scene
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/blender-workspace/FuturisticApartment/Objects/mirror/Rectangular_Mirror-White_v1_L1.123c6443420e-bde5-462a-9516-f34ae0541095/Mirror.obj"
+    obj_file_path = "./obj/ex2/Mirror.obj"
     sionObj = sionnaObject("Mirror",obj_file_path, [-1,-7.6,3])
     sionObj.create_custom_material(
         material_name=materialsToCheck["mirror"]["material_name"],
@@ -1206,11 +1199,11 @@ def example2():
     env.store_simulation_info()
     env.create_communication_link("Laptop", [6,4,3], "Router", [5,-7,3])
     env.calculate_channel_state()
-    # env.simulate_digital_communication(1000,100)
+    env.simulate_digital_communication(1000,10)
 
     
 
-    # env.display_stats()
+    env.display_stats()
 
     
     #rendering 
@@ -1259,7 +1252,7 @@ def example3():
         "pos3" : [-141.3,-115.1,5.5]
     }
 
-    filepath = "./../models/Ioannina/Ioannina.xml"
+    filepath = "./scenes/ex3/Ioannina.xml"
     scene = load_scene(filepath)
 
     frequency = 2.437e9
@@ -1267,10 +1260,10 @@ def example3():
     fft_size = 64
 
     #setup enviroment and start simulation
-    env = SionnaEnv(scene, frequency, bandwith, fft_size,  args.rt_calc_diffraction, args.rt_max_depth, args.rt_max_parallel_links, args.est_csi, VERBOSE=args.verbose)
+    env = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
 
     #add the antenna
-    obj_file_path = "/home/user/Documents/Diplomatiki/objects_to_test/blender-workspace/Ioannina/objects_files/Antenna.obj"
+    obj_file_path = "./obj/ex3/Antenna.obj"
     sionObj = sionnaObject("Antenna",obj_file_path, [0,0,0])
     sionObj.set_sionna_material("itu_metal")
     objectsToAdd = [sionObj]
@@ -1279,11 +1272,11 @@ def example3():
     env.store_simulation_info()
     env.create_communication_link("Smartphone", smartphonePositions["pos2"], "TelTower", [0,10,50])
     env.calculate_channel_state()
-    # env.simulate_digital_communication(1000,10)
+    env.simulate_digital_communication(1000,10)
 
     
 
-    # env.display_stats()
+    env.display_stats()
 
     try:
         resolution = [1280,720]
@@ -1314,11 +1307,21 @@ def example3():
     
 #     args = parser.parse_args()
 
+#     #test
+#     print("Single_run: ", args.single_run)
+#     print("rt_calc_diffraction: ", args.rt_calc_diffraction)
+#     print("rt_max_depth: ", args.rt_max_depth)
+#     print("rt_max_parallel_links: ", args.rt_max_parallel_links)
+#     print("est_csi: ", args.est_csi)
+#     print("verbose: ", args.verbose)
+#     #end test
+
+
 #     #print("HELLO SIONNA!!!")
 
-#     #example1()
+#     example1()
 
-#     example2() 
+#     #example2() 
 
 #     #example3()   
 
@@ -1329,12 +1332,29 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="", help="Path for input <file>.json")
     parser.add_argument("--render", action="store_true", default=False, help="Render task")
+    parser.add_argument("--example1", action="store_true", default=False, help="Run example1")
+    parser.add_argument("--example2", action="store_true", default=False, help="Run example2")
+    parser.add_argument("--example3", action="store_true", default=False, help="Run example3")
     args = parser.parse_args()
     
+    isRunExample1 = args.example1
+    isRunExample2 = args.example2
+    isRunExample3 = args.example3
+
+    if (isRunExample1):
+        example1()
+        exit()
+    elif (isRunExample2):
+        example2()
+        exit()
+    elif (isRunExample3):
+        example3()
+        exit()
+        
     
     isRender = args.render
-    print("render: ", args.render)
-    print("config: ", args.config)
+    print("Render: ", args.render)
+    print("Config: ", args.config)
     filepath = args.config
     
     if (len(filepath)==0):
@@ -1432,7 +1452,8 @@ if __name__ == '__main__':
             cameraPos = example_config["camera_positions"]
             lookAt = example_config["look_at"]
             simulation_name = example_config["simulation_name"]
-            env.preview_the_scene(resolution, cameraPos, lookAt, simulation_name)
+            render_file_output = example_config["render_output"]
+            env.preview_the_scene(resolution, cameraPos, lookAt, render_file_output)
             print("RENDER DONE")
         except Exception as e:
             print(e)

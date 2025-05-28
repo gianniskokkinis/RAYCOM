@@ -4,4 +4,4 @@ protobuf==3.19.6
 tensorflow==2.10.1
 mitsuba==3.3.0
 sionna==0.17.0
-pyzmq==25.0.2
+trimesh==4.6.10
