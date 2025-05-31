@@ -1,6 +1,6 @@
 import os
-os.environ['LD_LIBRARY_PATH'] = '/usr/lib/llvm-13/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
-os.environ['DRJIT_LIBLLVM_PATH'] = '/usr/lib/llvm-13/lib/libLLVM.so'
+# os.environ['LD_LIBRARY_PATH'] = '/usr/lib/llvm-13/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
+# os.environ['DRJIT_LIBLLVM_PATH'] = '/usr/lib/llvm-13/lib/libLLVM.so'
 # os.environ['MI_DEFAULT_VARIANT'] = 'llvm_ad_rgb'
 os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
@@ -1222,20 +1222,9 @@ def example2(isRender):
         except Exception as e:
             print(e)
 
+ 
 
-        try:
-            resolution = [1280,720]
-
-            #render second room
-            cameraPos = cameraPositions["room2"]["cameraPos"]
-            lookAt = cameraPositions["room2"]["lookAt"]
-            env.preview_the_scene(resolution, cameraPos, lookAt, "example2_2.jpg")
-            
-
-            print("!!! RENDER DONE !!!")
-        except Exception as e:
-            print(e)
-
+   
         
     
 
@@ -1317,6 +1306,7 @@ def example3(isRender):
     print("---------------------------------- POS OUTSIDE NOMARXIA -------------")
 
     #setup enviroment and start simulation
+    scene = load_scene(filepath)
     env2 = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
 
     #add the antenna
@@ -1353,6 +1343,7 @@ def example3(isRender):
     print("---------------------------------- POS AGORA -------------")
 
     #setup enviroment and start simulation
+    scene = load_scene(filepath)
     env3 = SionnaEnv(scene, frequency, bandwith, fft_size,  False, 6, 4, False, VERBOSE=False)
 
     #add the antenna
@@ -1485,7 +1476,7 @@ if __name__ == '__main__':
     if ("objects" in list(example_config.keys())):
 
         for sionObj in list(example_config["objects"].keys()):
-            print("sionObj: ", sionObj)
+            
             obj_file_path = example_config["objects"][sionObj]["obj_file_path"]
 
             put_sionObj = sionnaObject(example_config["objects"][sionObj]["name"],
@@ -1494,7 +1485,7 @@ if __name__ == '__main__':
                                     )
             #print(list(example_config["objects"][sionObj].keys()))
             if ("custom_material" in list(example_config["objects"][sionObj].keys())):
-                print("!!!! CUSTOM MATERIAL !!!!")
+                
                 update_material_scattering_pattern = None
                 if (example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"] != "None"):
                     update_material_scattering_pattern = example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"]

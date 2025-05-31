@@ -1,2 +1,0 @@
-python3.10 -m venv sionna-venv
-source sionna-venv/bin/activate
