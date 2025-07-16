@@ -33,24 +33,31 @@
 Περισσότερες οδηγίες θα βρείτε μέσα στο αρχείο RAYCOM.pdf 
 Εκτέλεση παραδειγμάτων: 
 
-  ```bash
-  python3 raycom-tool.py –-example1
+Παράδειγμα 1:
+```bash
+python3 raycom-tool.py --example1
+```
 
+Παράδειγμα 2:
+```bash
+python3 raycom-tool.py --example2
+```
 
-  ```bash
-  python3 raycom-tool.py –-example2
+Παράδειγμα 3 (Μπροστά από την αστυνομία):
+```bash
+python3 raycom-tool.py --example3_1
+```
 
-  ```bash
-  python3 raycom-tool.py –-example3_1
+Παράδειγμα 3 (Μπροστά στην νομαρχία):
+```bash
+python3 raycom-tool.py --example3_2
+```
 
-  ```bash
-  python3 raycom-tool.py –-example3_2
+Παράδειγμα 3 (Μέσα στην αγορά):
+```bash
+python3 raycom-tool.py --example3_3
+```
 
-  ```bash
-  python3 raycom-tool.py –-example3_3
-
-
-
-##  Εναλλακτική Εκτέλεση μέσω Google Colab
-Οδηγίες μέσα στο αρχείο RAYCOM.pdf
+## Εναλλακτικός Τρόπος Εκτέλεσης μέσω Google Colab
+Μπορείτε να το τρέξετε από την πλατφόρμα Google Colab με τις οδηγίες που βρίσκονται μέσα στο αρχείο RAYCOM.pdf
 
