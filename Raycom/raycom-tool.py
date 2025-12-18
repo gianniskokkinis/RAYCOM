@@ -1,12 +1,13 @@
 import os
-# os.environ['LD_LIBRARY_PATH'] = '/usr/lib/llvm-13/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
-# os.environ['DRJIT_LIBLLVM_PATH'] = '/usr/lib/llvm-13/lib/libLLVM.so'
-# os.environ['MI_DEFAULT_VARIANT'] = 'llvm_ad_rgb'
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
-# print("-----------------HERE PATHS -----------------")
-# print("LD_LIBRARY_PATH:", os.environ.get('LD_LIBRARY_PATH'))
-# print("DRJIT_LIBLLVM_PATH:", os.environ.get('DRJIT_LIBLLVM_PATH'))
+# update  LLVM 15 
+llvm_path = '/usr/lib/llvm-15/lib'
+llvm_lib = os.path.join(llvm_path, 'libLLVM-15.so') 
+os.environ['LD_LIBRARY_PATH'] = llvm_path + ':' + os.environ.get('LD_LIBRARY_PATH', '')
+os.environ['DRJIT_LIBLLVM_PATH'] = llvm_lib
+
+os.environ['MI_DEFAULT_VARIANT'] = 'llvm_ad_rgb'
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
 import argparse
 
@@ -158,8 +159,8 @@ class SionnaEnv:
 
             
         # Configure antenna array for all receivers
-        self.scene.rx_array = PlanarArray(num_rows=1,
-                                     num_cols=1,
+        self.scene.rx_array = PlanarArray(num_rows=5,
+                                     num_cols=5,
                                      vertical_spacing=0.5,
                                      horizontal_spacing=0.5,
                                      pattern=iso_pattern)
@@ -173,10 +174,13 @@ class SionnaEnv:
     
     
     
-    def create_communication_link(self, tx_name, tx_position, rx_name , rx_position):
+    # Πρόσθεσα το rx_orientation=[0,0,0] στα ορίσματα (με default τιμή για να μην σπάει ο κώδικας αν δεν το δώσεις)
+    def create_communication_link(self, tx_name, tx_position, rx_name , rx_position, rx_orientation=[0,0,0]):
         #This method is about creating link between transmitter and receiver 
         self.tx = Transmitter(name=tx_name, position=tx_position)
-        self.rx = Receiver(name=rx_name, position=rx_position)
+        
+        # Τώρα το rx_orientation υπάρχει και μπορεί να χρησιμοποιηθεί εδώ
+        self.rx = Receiver(name=rx_name, position=rx_position, orientation=rx_orientation)
 
         self.scene.add(self.tx)
         self.scene.add(self.rx)
@@ -268,6 +272,7 @@ class SionnaEnv:
         # Calculate loss
         self.lnk_loss = float(-10 * np.log10(tf.reduce_mean(tf.abs(self.h_freq) ** 2).numpy())) # Db
 
+
         #print channel info 
         print(f"Delay: {self.lnk_delay} sec")
         print(f"Loss: {self.lnk_loss} sec")
@@ -276,10 +281,20 @@ class SionnaEnv:
 
 
         #calculate RMS Delay Spread 
-        a_np = np.abs(self.a.numpy().flatten()) # |ak|
+        if len(self.a.shape) >= 6:
+            a_for_stats = self.a[:, :, 0, :, 0, :, :] 
+        else:
+            a_for_stats = self.a # case SISO 
+            
+        a_np = np.abs(a_for_stats.numpy().flatten()) # |ak|
         tau_np = self.tau.numpy().flatten() # |tk|
+        
+        # Now a_np and tau_np will both have a size of 37 (or however many paths were found)
+        # and the calculation will be performed correctly.
+        
         self.mean_tau = np.sum((a_np**2) * tau_np) / np.sum(a_np**2) # mean tau 
-        self.rms_delay_spread = np.sqrt(np.sum((a_np**2) * (tau_np - self.mean_tau)**2) / np.sum(a_np**2) ) #total rms 
+        self.rms_delay_spread = np.sqrt(np.sum((a_np**2) * (tau_np - self.mean_tau)**2) / np.sum(a_np**2) ) #total rms
+
 
         #calculate coherence bandwith
         self.coherence_bandwith = 1 / (5 * self.rms_delay_spread)
@@ -633,74 +648,208 @@ class SionnaEnv:
             
            
 
-            
+    def generate_heatmap(self):
+        # Get the channel response (frequency range)
+        # h_freq shape: [1, 1, 25, 1, 1, fft_size, 1] (assuming 1 Tx, 1 Rx object, SISO TX, 5x5 RX)
+        h = self.h_freq.numpy() 
         
-            
-
-                
-
-            
-
+        # Elimination of dimensions that are 1
+        # Now we have the shape [25, fft_size] -> [number_of_antennas, frequencies]
+        h_squeezed = np.squeeze(h) 
         
-
-
-
+        # We select, for example, the central subcarrier (frequency) for display.
+        # Or we can take the average of all frequencies.
+        # Let's take the average power across all subcarriers for starters.
         
+        # Magnitude Calculation
+        magnitude = np.mean(np.abs(h_squeezed), axis=1) # We take the average of the subcarriers. Result: 25 values
+        
+        # Phase calculation - a little more complex because the phase changes with frequency
+        # Let's take the phase of the central subcarrier
+        center_subcarrier = h_squeezed.shape[1] // 2
+        phase = np.angle(h_squeezed[:, center_subcarrier]) # Result: 25 values
+        
+        # Reshape into a 5x5 grid to make it an image
+        magnitude_map = magnitude.reshape(5, 5)
+        phase_map = phase.reshape(5, 5)
+        
+        return magnitude_map, phase_map
 
 
 
-
+    def plot_radio_image(self):
+        mag_map, phase_map = self.generate_heatmap()
+        
+        plt.figure(figsize=(10, 5))
+        
+        plt.subplot(1, 2, 1)
+        plt.imshow(mag_map, cmap='viridis', interpolation='nearest') # 'nearest' to show pixels, 'bicubic' for smoother results
+        plt.colorbar(label='Magnitude')
+        plt.title('RF Magnitude Map (5x5)')
+        
+        plt.subplot(1, 2, 2)
+        plt.imshow(phase_map, cmap='twilight', interpolation='nearest')
+        plt.colorbar(label='Phase (rad)')
+        plt.title('RF Phase Map (5x5)')
+        
+        plt.show()
+        
+        # Here you will save the images for pix2pix later
+        # plt.imsave("rf_input.png", mag_map, cmap='viridis')
+        
     
+    def save_radio_heatmap(self, filename):
+        
+        # collect data 
+        mag_map, phase_map = self.generate_heatmap()
+        
+        # Saving to file
+        # We use 'plt.imsave' which creates an image without axes and margins.
+        # 'cmap' gives the color.
+        plt.imsave(filename, mag_map, cmap='viridis') 
+        
+        print(f"--> Saved Heatmap image: {filename}")
+
+
+    def save_dataset_pair(self, pair_id, folder="dataset"):
+        """
+        Αποθηκεύει το ζευγάρι χωριστά:
+        1. φάκελος/A/{pair_id}_A.png -> Το RF Heatmap
+        2. φάκελος/B/{pair_id}_B.png -> Η Οπτική Εικόνα
+        """
+        import os
+        
+        # create folders
+        path_A = os.path.join(folder, "A")
+        path_B = os.path.join(folder, "B")
+
+        if not os.path.exists(path_A):
+            os.makedirs(path_A)
+        if not os.path.exists(path_B):
+            os.makedirs(path_B)
+
+        # --- SAVE RF HEATMAP (INPUT A) ---
+        mag_map, phase_map = self.generate_heatmap()
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6, 3))
+        
+        ax1.imshow(mag_map, cmap='viridis', aspect='equal')
+        ax1.axis('off') 
+        
+        ax2.imshow(phase_map, cmap='twilight', aspect='equal')
+        ax2.axis('off')
+        
+        plt.subplots_adjust(wspace=0.05, hspace=0, left=0, right=1, bottom=0, top=1)
+        
+        # save to A directory
+        filename_A = os.path.join(path_A, f"{pair_id}_A.png")
+        plt.savefig(filename_A, dpi=100, bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+
+        # save optical image
+        rx_pos = self.rx.position.numpy().flatten().tolist()
+        target_look_at = self.tx.position.numpy().flatten().tolist() 
+        
+
+        cam_name = "dataset_cam"
+        if cam_name in self.scene.cameras:
+            self.scene.remove(cam_name)
+            
+        camera = Camera(cam_name, position=rx_pos)
+        camera.look_at(target_look_at) 
+        self.scene.add(camera)
+        
+        # save to directory B
+        filename_B = os.path.join(path_B, f"{pair_id}_B.png")
+        
+        self.scene.render_to_file(
+            camera=cam_name, 
+            filename=filename_B, 
+            resolution=(256, 256)
+        )
+        
+        self.scene.remove(cam_name)
+
+        print(f"Saved Pair {pair_id}:")
+        print(f"   -> RF:     {filename_A}")
+        print(f"   -> Visual: {filename_B}")
+    
+
+
     def display_stats(self):
         
         mat.use("Qt5Agg")
         
+        # Καθαρισμός παλιών figures για να αποφύγουμε τα warnings
+        plt.close('all')
 
         plt.figure(figsize=(15,10))
-        plt.title("Channel Informations")
+        plt.suptitle("Channel Informations") # Χρήση suptitle για κεντρικό τίτλο
         
-        #display the frequency response Magnitude
+        # --- 1. Frequency Response (Magnitude) ---
         plt.subplot(2,2,1)
         display_frequencies = self.frequencies.numpy()
-        #get the array
-        display_h_freq = self.h_freq.numpy()[0][0][0][0][0][0][:]
+        
+        # ΑΣΦΑΛΗΣ ΤΡΟΠΟΣ ΕΞΑΓΩΓΗΣ:
+        # Κάνουμε τον πίνακα flat (μονοκόμματο) και παίρνουμε τα πρώτα 'fft_size' στοιχεία.
+        # Αυτό αντιστοιχεί αυτόματα στην 1η κεραία, 1ο ζεύγος Tx-Rx, ανεξαρτήτως διαστάσεων.
+        h_flat = self.h_freq.numpy().flatten()
+        display_h_freq = h_flat[:self.fft_size] 
+
         #convert the h_freq from imaginary to DB
         plt.plot(display_frequencies, 20*np.log10(np.abs(display_h_freq)), "b")
-        plt.title("Frequency Response (Magnitude)")
+        plt.title("Frequency Response (Magnitude - 1st Ant.)")
         plt.xlabel("Frequencies (GHz)")
         plt.ylabel("Magnitude (DB)")
         plt.grid(True)
 
-        #display the frequency response Phase 
+        # --- 2. Frequency Response (Phase) ---
         plt.subplot(2,2,2)
         plt.plot(display_frequencies, np.angle(display_h_freq), "r")
-        plt.title("Frequency Response (Phase)")
+        plt.title("Frequency Response (Phase - 1st Ant.)")
         plt.xlabel("Frequencies (GHz)")
         plt.ylabel("phase (rad)")
         plt.grid(True)
 
-        #display Impulse Response (Amplitudes and Delays)
+        # --- 2. Frequency Response (Phase) ---
+        plt.subplot(2,2,2)
+        plt.plot(display_frequencies, np.angle(display_h_freq), "r")
+        plt.title("Frequency Response (Phase - 1st Ant.)")
+        plt.xlabel("Frequencies (GHz)")
+        plt.ylabel("phase (rad)")
+        plt.grid(True)
+
+        # --- 3. Impulse Response (Amplitudes and Delays) ---
         plt.subplot(2,2,3)
-        amplitudes = self.a.numpy().flatten()
+        
+        # ΔΙΟΡΘΩΣΗ: Επιλογή της 1ης κεραίας για τα Paths
+        # self.a shape: [batch, rx, rx_ant, tx, tx_ant, paths, steps]
+        if len(self.a.shape) >= 6:
+             # Παίρνουμε την 1η κεραία (index 0 στο rx_ant)
+            a_vis = self.a[:, :, 0, :, 0, :, :]
+        else:
+            a_vis = self.a
+            
+        amplitudes = a_vis.numpy().flatten()
         display_amplitudes = np.abs(amplitudes)
         display_delays = self.tau.numpy().flatten() #convert to nanoseconds
+        
+        # Τώρα τα μεγέθη είναι σωστά (π.χ. 37 vs 37) και δεν θα πετάξει error
         plt.stem(display_delays, display_amplitudes, linefmt="b-", markerfmt="bo", basefmt=' ')
-        plt.title("Impulse Response (Power)")
+        plt.title("Impulse Response (Power - 1st Ant.)")
         plt.xlabel("Delay [s]")
         plt.ylabel("Amplitude")
         plt.grid(True)
 
         if (len(display_delays)>0):#case small values
             max_delay = np.max(display_delays) #take the max limit 
+            # Προστασία για διαίρεση με το μηδέν ή πολύ μικρά νούμερα
+            if max_delay == 0:
+                max_delay = 1e-9
             min_limit = -0.01*max_delay
             max_limit = 1.01*max_delay
             plt.xlim([min_limit, max_limit])
         
-
-        
-
-
-
 
         #legend box with objects and materials 
         displayList = []
@@ -744,8 +893,8 @@ class SionnaEnv:
         plt.tight_layout()
         plt.show()
 
-        #display channel info 
-        plt.subplot(2,2,4)
+        #display channel info (ΣΕ ΞΕΧΩΡΙΣΤΟ ΠΑΡΑΘΥΡΟ ΓΙΑ ΝΑ ΜΗΝ ΠΕΦΤΕΙ ΠΑΝΩ ΣΤΑ ΑΛΛΑ)
+        plt.figure(figsize=(6, 4))
         plt.axis("off")
         info_text = "---- Channel Informations ----\n"+"Delay: "+str(self.lnk_delay)+"sec\n"+"Loss: "+str(self.lnk_loss)+"sec\n"+"Bandwith: "+str(self.scene.channel_bw)+"Hz\n"+"Coherence Bandwith: "+str(self.coherence_bandwith)+"Hz\n"
         plt.text(
@@ -769,153 +918,104 @@ class SionnaEnv:
         plt.figure(figsize=(15,10))
         plt.title("Error Ration")
 
-        #display PAM BER 
-        plt.subplot(2,4,1)
-        ber_display = self.modulations["pam"]["ber"]
-        plt.semilogy(self.snr_values, ber_display, "-o")
-        plt.title("PAM modulation BER")
-        plt.xlabel("Eb/No (dB)")
-        plt.ylabel("BER")
-        plt.grid(True)
-
-        # #fix the limits 
-        # plt.ylim(bottom=0.4, top=0.6)
-        # plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
-
-        #display PAM BLER
-        plt.subplot(2,4,2)
-        ber_display = self.modulations["pam"]["bler"]
-        plt.semilogy(self.snr_values, ber_display, "-o")
-        plt.title("PAM modulation BLER")
-        plt.xlabel("Eb/No (dB)")
-        plt.ylabel("BLER")
-        plt.grid(True)
-
-        #display PAM 
 
 
+        # """
+        # FOR BER 
+        # """
+        # #display PAM BER 
+        # plt.subplot(2,4,1)
+        # ber_display = self.modulations["pam"]["ber"]
+        # plt.semilogy(self.snr_values, ber_display, "-o")
+        # plt.title("PAM modulation BER")
+        # plt.xlabel("Eb/No (dB)")
+        # plt.ylabel("BER")
+        # plt.grid(True)
 
-        #display 4-PAM BER 
-        plt.subplot(2,4,3)
-        ber_display = self.modulations["4-pam"]["ber"]
-        plt.semilogy(self.snr_values, ber_display, "-o")
-        plt.title("4-PAM modulation BER")
-        plt.xlabel("Eb/No (dB)")
-        plt.ylabel("BER")
-        plt.grid(True)
+        # #display PAM BLER
+        # plt.subplot(2,4,2)
+        # ber_display = self.modulations["pam"]["bler"]
+        # plt.semilogy(self.snr_values, ber_display, "-o")
+        # plt.title("PAM modulation BLER")
+        # plt.xlabel("Eb/No (dB)")
+        # plt.ylabel("BLER")
+        # plt.grid(True)
 
-        #fix the limits 
-        # plt.ylim(bottom=0.4, top=0.6)
-        # plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
+        # #display 4-PAM BER 
+        # plt.subplot(2,4,3)
+        # ber_display = self.modulations["4-pam"]["ber"]
+        # plt.semilogy(self.snr_values, ber_display, "-o")
+        # plt.title("4-PAM modulation BER")
+        # plt.xlabel("Eb/No (dB)")
+        # plt.ylabel("BER")
+        # plt.grid(True)
 
-        #display 4-PAM BLER
-        plt.subplot(2,4,4)
-        ber_display = self.modulations["4-pam"]["bler"]
-        plt.semilogy(self.snr_values, ber_display, "-o")
-        plt.title("4-PAM modulation BLER")
-        plt.xlabel("Eb/No (dB)")
-        plt.ylabel("BLER")
-        plt.grid(True)
+     
+        # #display 4-PAM BLER
+        # plt.subplot(2,4,4)
+        # ber_display = self.modulations["4-pam"]["bler"]
+        # plt.semilogy(self.snr_values, ber_display, "-o")
+        # plt.title("4-PAM modulation BLER")
+        # plt.xlabel("Eb/No (dB)")
+        # plt.ylabel("BLER")
+        # plt.grid(True)
 
 
 
-        #display 16-QAM BER 
-        plt.subplot(2,4,5)
-        ber_display = self.modulations["16-qam"]["ber"]
-        plt.semilogy(self.snr_values, ber_display, "-o")
-        plt.title("16-QAM modulation BER")
-        plt.xlabel("Eb/No (dB)")
-        plt.ylabel("BER")
-        plt.grid(True)
+        # #display 16-QAM BER 
+        # plt.subplot(2,4,5)
+        # ber_display = self.modulations["16-qam"]["ber"]
+        # plt.semilogy(self.snr_values, ber_display, "-o")
+        # plt.title("16-QAM modulation BER")
+        # plt.xlabel("Eb/No (dB)")
+        # plt.ylabel("BER")
+        # plt.grid(True)
 
-        #fix the limits 
-        # plt.ylim(bottom=0.4, top=0.6)
-        # plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
-
-        #display 16-QAM BLER
-        plt.subplot(2,4,6)
-        ber_display = self.modulations["16-qam"]["bler"]
-        plt.semilogy(self.snr_values, ber_display, "-o")
-        plt.title("16-QAM modulation BLER")
-        plt.xlabel("Eb/No (dB)")
-        plt.ylabel("BLER")
-        plt.grid(True)
+  
+        # #display 16-QAM BLER
+        # plt.subplot(2,4,6)
+        # ber_display = self.modulations["16-qam"]["bler"]
+        # plt.semilogy(self.snr_values, ber_display, "-o")
+        # plt.title("16-QAM modulation BLER")
+        # plt.xlabel("Eb/No (dB)")
+        # plt.ylabel("BLER")
+        # plt.grid(True)
 
 
+        # #display 64-QAM BER 
+        # plt.subplot(2,4,7)
+        # ber_display = self.modulations["64-qam"]["ber"]
+        # plt.semilogy(self.snr_values, ber_display, "-o")
+        # plt.title("64-QAM modulation BER")
+        # plt.xlabel("Eb/No (dB)")
+        # plt.ylabel("BER")
+        # plt.grid(True)
 
 
-        #display 64-QAM BER 
-        plt.subplot(2,4,7)
-        ber_display = self.modulations["64-qam"]["ber"]
-        plt.semilogy(self.snr_values, ber_display, "-o")
-        plt.title("64-QAM modulation BER")
-        plt.xlabel("Eb/No (dB)")
-        plt.ylabel("BER")
-        plt.grid(True)
+        # #display 64-QAM BLER
+        # plt.subplot(2,4,8)
+        # ber_display = self.modulations["64-qam"]["bler"]
+        # plt.semilogy(self.snr_values, ber_display, "-o")
+        # plt.title("64-QAM modulation BLER")
+        # plt.xlabel("Eb/No (dB)")
+        # plt.ylabel("BLER")
+        # plt.grid(True)
 
-        #fix the limits 
-        # plt.ylim(bottom=0.4, top=0.6)
-        # plt.xlim(left=min(self.snr_values)-1, right=max(self.snr_values)+1)
-
-        #display 64-QAM BLER
-        plt.subplot(2,4,8)
-        ber_display = self.modulations["64-qam"]["bler"]
-        plt.semilogy(self.snr_values, ber_display, "-o")
-        plt.title("64-QAM modulation BLER")
-        plt.xlabel("Eb/No (dB)")
-        plt.ylabel("BLER")
-        plt.grid(True)
-
-        plt.tight_layout()
-        plt.show()
-        
-
-
-        # #plot ser
-        # plt.figure(figsize=(15,10))
-        # plt.title("Symbol Error Rate")
-        # pos = 1
-        # for mod in self.modulations.keys():
-        #     plt.subplot(2,4,pos)
-        #     display_values = self.modulations[mod]["ser"]
-        #     plt.semilogy(self.snr_values, display_values, "-o")
-        #     plt.title(f"{mod} modulation SER")
-        #     plt.xlabel("Eb/No (dB)")
-        #     plt.ylabel("SER")
-        #     plt.grid(True)
-        #     pos+=1
         # plt.tight_layout()
         # plt.show()
-
-
-        #plot Bits Error 
-        plt.figure(figsize=(15,10))
-        plt.title("Bits Error")
-        pos = 1
-        for mod in self.modulations.keys():
-            plt.subplot(2,4,pos)
-            display_values = self.modulations[mod]["bit_errors"]
-            plt.semilogy(self.snr_values, display_values, "-o")
-            plt.title(f"{mod} modulation Bits Error")
-            plt.xlabel("Eb/No (dB)")
-            plt.ylabel("Bits Error")
-            plt.grid(True)
-            pos+=1
-        plt.tight_layout()
-        plt.show()
-
         
-        # #plot Block Error 
+
+        # #plot Bits Error 
         # plt.figure(figsize=(15,10))
-        # plt.title("Block Error")
+        # plt.title("Bits Error")
         # pos = 1
         # for mod in self.modulations.keys():
         #     plt.subplot(2,4,pos)
-        #     display_values = self.modulations[mod]["block_errors"]
+        #     display_values = self.modulations[mod]["bit_errors"]
         #     plt.semilogy(self.snr_values, display_values, "-o")
-        #     plt.title(f"{mod} modulation Block Error")
+        #     plt.title(f"{mod} modulation Bits Error")
         #     plt.xlabel("Eb/No (dB)")
-        #     plt.ylabel("Block Error")
+        #     plt.ylabel("Bits Error")
         #     plt.grid(True)
         #     pos+=1
         # plt.tight_layout()
@@ -1032,7 +1132,7 @@ def example1(isRender):
 
     
 
-
+    
     objectsToAdd = []
 
 
@@ -1120,11 +1220,13 @@ def example1(isRender):
     env.store_simulation_info()
     env.create_communication_link("Laptop", [1.5,2,1], "Router", [4.5,2,1])
     env.calculate_channel_state()
-    env.simulate_digital_communication(1000,10)
+    # env.simulate_digital_communication(1000,10)
 
     
 
     env.display_stats()
+
+    
 
     if (isRender):
         #render 
@@ -1133,6 +1235,10 @@ def example1(isRender):
             print("!!! RENDER DONE !!!")
         except Exception as e:
             print(e)
+
+    #for color map 
+    env.generate_heatmap()
+    env.save_radio_heatmap("my_heatmap.png")
     
     
 
@@ -1377,42 +1483,101 @@ def example3(isRender,place):
                 
         
 
+
+"""
+For generating datasets 
+"""
+
+def generate_dataset_example1():
+    print("--- STARTING DATASET GENERATION FOR EXAMPLE 1 ---")
+    
+    # 1. load scene 
+    filepath = "./scenes/ex1/simple_room.xml"
+    scene = load_scene(filepath)
+    frequency = 2.437e9
+    bandwith = 20e6
+    fft_size = 64
+    
+    # Setup environment
+    env = SionnaEnv(scene, frequency, bandwith, fft_size, False, 6, 4, False, VERBOSE=False)
+    
+    # 2. add objects 
+    materialsToCheck = {
+        "mirror": {"material_name": "mirror", "material_relative_permittivity": 1.0, "material_conductivity": 3.8e7, "material_scattering_coefficient": 0.0, "material_xpd_coefficient": 0.0, "material_scattering_pattern": None, "material_frequency_update_callback": None},
+        "mercury_wall": {"material_name": "mercury_wall", "material_relative_permittivity": 1.0, "material_conductivity": 1e6, "material_scattering_coefficient": 0.0, "material_xpd_coefficient": 0.0, "material_scattering_pattern": None, "material_frequency_update_callback": None},
+        "elevator": {"material_name": "elevator", "material_relative_permittivity": 1.0, "material_conductivity": 1.4e6, "material_scattering_coefficient": 0.05, "material_xpd_coefficient": 0.1, "material_scattering_pattern": None, "material_frequency_update_callback": None},
+        "drywall": {"material_name": "drywall", "material_relative_permittivity": 2.5, "material_conductivity": 0.01, "material_scattering_coefficient": 0.05, "material_xpd_coefficient": 0.1, "material_scattering_pattern": None, "material_frequency_update_callback": None},
+    }
+
+    objectsToAdd = []
+    
+    # Wall 1
+    sionObj = sionnaObject("barrier-wall", "./obj/ex1/barrier_wall.stl", [3, 2.00469, 0.422312])
+    sionObj.create_custom_material(materialsToCheck["mirror"]["material_name"], materialsToCheck["mirror"]["material_relative_permittivity"], materialsToCheck["mirror"]["material_conductivity"], materialsToCheck["mirror"]["material_scattering_coefficient"], materialsToCheck["mirror"]["material_xpd_coefficient"], materialsToCheck["mirror"]["material_scattering_pattern"], materialsToCheck["mirror"]["material_frequency_update_callback"], setColor=[1.0, 0.0, 0.0])
+    objectsToAdd.append(sionObj)
+
+    # Wall 2
+    sionObj = sionnaObject("barrier-wall-2", "./obj/ex1/barrier_wall2.stl", [3, 2.00469, 1.90484])
+    sionObj.create_custom_material(materialsToCheck["mercury_wall"]["material_name"], materialsToCheck["mercury_wall"]["material_relative_permittivity"], materialsToCheck["mercury_wall"]["material_conductivity"], materialsToCheck["mercury_wall"]["material_scattering_coefficient"], materialsToCheck["mercury_wall"]["material_xpd_coefficient"], materialsToCheck["mercury_wall"]["material_scattering_pattern"], materialsToCheck["mercury_wall"]["material_frequency_update_callback"], setColor=[0.0, 1.0, 0.0])
+    objectsToAdd.append(sionObj)
+
+    # Wall 3
+    sionObj = sionnaObject("barrier-wall-3", "./obj/ex1/barrier_wall3.stl", [3, 0.936904, 1.2271])
+    sionObj.create_custom_material(materialsToCheck["elevator"]["material_name"], materialsToCheck["elevator"]["material_relative_permittivity"], materialsToCheck["elevator"]["material_conductivity"], materialsToCheck["elevator"]["material_scattering_coefficient"], materialsToCheck["elevator"]["material_xpd_coefficient"], materialsToCheck["elevator"]["material_scattering_pattern"], materialsToCheck["elevator"]["material_frequency_update_callback"], setColor=[0.0, 0.0, 1.0])
+    objectsToAdd.append(sionObj)
+
+    # Wall 4
+    sionObj = sionnaObject("barrier-wall-4", "./obj/ex1/barrier_wall4.stl", [3, 3.34588, 1.2271])
+    sionObj.create_custom_material(materialsToCheck["drywall"]["material_name"], materialsToCheck["drywall"]["material_relative_permittivity"], materialsToCheck["drywall"]["material_conductivity"], materialsToCheck["drywall"]["material_scattering_coefficient"], materialsToCheck["drywall"]["material_xpd_coefficient"], materialsToCheck["drywall"]["material_scattering_pattern"], materialsToCheck["drywall"]["material_frequency_update_callback"], setColor=[1.0, 1.0, 0.0])
+    objectsToAdd.append(sionObj)
+
+    # load objects 
+    env.load_obj_from_file(objectsToAdd, filepath)
+    
+    # simulation
+    env.store_simulation_info()
+
+    # 3. LOOP DATASET
+    # We are moving the receiver to y axis
+    # we are gonna get 20 samples
+    y_positions = np.linspace(-3.0, 3.0, 20) 
+    
+    for i, y_pos in enumerate(y_positions):
+        
+        
+        tx_pos = [1.5, -2, 1.5] 
+        rx_pos = [4.5, y_pos, 1.5]
+        
+        # Clear previous links
+        if "Router" in env.scene.receivers:
+            env.scene.remove("Router")
+        if "Laptop" in env.scene.transmitters:
+            env.scene.remove("Laptop")
+            
+        # Create Link at new position
+        # Add orientation so that the receiver faces inward (towards the transmitter)
+        # [0, 0, 3.14] means a 180-degree turn (facing backward on the X axis)
+        env.create_communication_link("Laptop", tx_pos, "Router", rx_pos, rx_orientation=[0,0,3.14])
+        
+        
+        try:
+            # try to calculate channel
+            env.calculate_channel_state()
+            
+            # Αν πετύχει, σώζουμε το ζευγάρι
+            env.save_dataset_pair(pair_id=i, folder="dataset_ex1")
+            
+        except SystemExit:
+            # Αν το Sionna δεν βρει σήμα και κάνει raise SystemExit, το πιάνουμε εδώ
+            print(f"--> SKIPPING Point {i} (y={y_pos:.2f}): No signal found (Blind Spot).")
+            continue # Συνεχίζουμε στο επόμενο
+        except Exception as e:
+            # Για οποιοδήποτε άλλο λάθος
+            print(f"--> ERROR at Point {i}: {e}")
+            continue
+
+    print("--- DATASET GENERATION COMPLETED ---")
      
-
-    
-# #Test examples 
-# if __name__ == '__main__': 
-    
-
-    
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--single_run", help="Whether not to terminate after single run", action='store_true')
-#     parser.add_argument("--rt_calc_diffraction", help="Calc diffraction in raytracing", action='store_true')
-#     parser.add_argument("--rt_max_depth", type=int, default=6, help="Calc diffraction in raytracing")
-#     parser.add_argument("--rt_max_parallel_links", type=int, default=4, help="Max no. of receivers")
-#     parser.add_argument("--est_csi", help="Whether to estimate complex CSI per OFDM subcarrier", action='store_true')
-#     parser.add_argument("--verbose", help="Whether to run in verbose mode", action='store_true')
-    
-    
-#     args = parser.parse_args()
-
-#     #test
-#     print("Single_run: ", args.single_run)
-#     print("rt_calc_diffraction: ", args.rt_calc_diffraction)
-#     print("rt_max_depth: ", args.rt_max_depth)
-#     print("rt_max_parallel_links: ", args.rt_max_parallel_links)
-#     print("est_csi: ", args.est_csi)
-#     print("verbose: ", args.verbose)
-#     #end test
-
-
-#     #print("HELLO SIONNA!!!")
-
-#     example1()
-
-#     #example2() 
-
-#     #example3()   
 
     
 #Main
@@ -1426,8 +1591,19 @@ if __name__ == '__main__':
     parser.add_argument("--example3_1", action="store_true", default=False, help="Run example3")
     parser.add_argument("--example3_2", action="store_true", default=False, help="Run example3")
     parser.add_argument("--example3_3", action="store_true", default=False, help="Run example3")
+    parser.add_argument("--gen_dataset", action="store_true", default=False, help="Generate Dataset from Example 1")
     
     args = parser.parse_args()
+
+    """
+    Training
+    """
+    if args.gen_dataset:
+        generate_dataset_example1()
+        exit()
+    """
+    End training
+    """
     
     isRunExample1 = args.example1
     isRunExample2 = args.example2
