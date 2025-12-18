@@ -712,67 +712,63 @@ class SionnaEnv:
 
 
     def save_dataset_pair(self, pair_id, folder="dataset"):
-        """
-        Αποθηκεύει το ζευγάρι χωριστά:
-        1. φάκελος/A/{pair_id}_A.png -> Το RF Heatmap
-        2. φάκελος/B/{pair_id}_B.png -> Η Οπτική Εικόνα
-        """
-        import os
-        
-        # create folders
-        path_A = os.path.join(folder, "A")
-        path_B = os.path.join(folder, "B")
 
-        if not os.path.exists(path_A):
-            os.makedirs(path_A)
-        if not os.path.exists(path_B):
-            os.makedirs(path_B)
+        # --- 1. ΔΗΜΙΟΥΡΓΙΑ ΦΑΚΕΛΩΝ ---
+        path_A = os.path.join(folder, "A") # RF Heatmaps
+        path_B = os.path.join(folder, "B") # Optical Images
 
-        # --- SAVE RF HEATMAP (INPUT A) ---
+        if not os.path.exists(path_A): os.makedirs(path_A)
+        if not os.path.exists(path_B): os.makedirs(path_B)
+
+        # --- 2. RF HEATMAP (INPUT) ---
+        # Παράγουμε το Heatmap από το σήμα που έλαβε ο Receiver
         mag_map, phase_map = self.generate_heatmap()
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6, 3))
-        
-        ax1.imshow(mag_map, cmap='viridis', aspect='equal')
-        ax1.axis('off') 
-        
-        ax2.imshow(phase_map, cmap='twilight', aspect='equal')
-        ax2.axis('off')
-        
-        plt.subplots_adjust(wspace=0.05, hspace=0, left=0, right=1, bottom=0, top=1)
-        
-        # save to A directory
-        filename_A = os.path.join(path_A, f"{pair_id}_A.png")
-        plt.savefig(filename_A, dpi=100, bbox_inches='tight', pad_inches=0)
-        plt.close(fig)
+        # Το αποθηκεύουμε ως εικόνα
+        plt.imsave(os.path.join(path_A, f"{pair_id}_A.png"), mag_map, cmap='viridis')
 
-        # save optical image
-        rx_pos = self.rx.position.numpy().flatten().tolist()
-        target_look_at = self.tx.position.numpy().flatten().tolist() 
+        # --- 3. OPTICAL IMAGE (TARGET) ---
         
+        # Παίρνουμε τις συντεταγμένες
+        rx_loc = self.rx.position.numpy().flatten() # Πού είναι το Router
+        tx_loc = self.tx.position.numpy().flatten() # Πού είναι το Laptop
 
+        # Υπολογίζουμε την κατεύθυνση από το Router προς το Laptop
+        direction = tx_loc - rx_loc
+        distance = np.linalg.norm(direction)
+        
+        if distance > 0:
+            direction = direction / distance # Κανονικοποίηση (γίνεται μονάδα)
+        else:
+            direction = np.array([1.0, 0.0, 0.0])
+
+        # !!! ΤΟ ΚΟΛΠΟ ΓΙΑ ΝΑ ΜΗ ΒΓΑΙΝΕΙ ΜΑΥΡΟ !!!
+        # Μετακινούμε την κάμερα 40 πόντους (0.4) προς το Laptop
+        # ώστε να βγει έξω από το 3D μοντέλο του Router.
+        camera_pos = rx_loc + (direction * 0.4)
+
+        # Ρυθμίζουμε την κάμερα
         cam_name = "dataset_cam"
+        # Αν υπάρχει ήδη παλιά κάμερα, την σβήνουμε
         if cam_name in self.scene.cameras:
             self.scene.remove(cam_name)
             
-        camera = Camera(cam_name, position=rx_pos)
-        camera.look_at(target_look_at) 
+        camera = Camera(cam_name, position=camera_pos.tolist())
+        camera.look_at(tx_loc.tolist()) # Η κάμερα κοιτάει το Laptop
         self.scene.add(camera)
         
-        # save to directory B
+        # Κάνουμε Render
         filename_B = os.path.join(path_B, f"{pair_id}_B.png")
-        
         self.scene.render_to_file(
             camera=cam_name, 
             filename=filename_B, 
-            resolution=(256, 256)
+            resolution=(256, 256) # Μικρή ανάλυση για γρήγορο dataset
         )
         
+        # Καθαρισμός
         self.scene.remove(cam_name)
 
-        print(f"Saved Pair {pair_id}:")
-        print(f"   -> RF:     {filename_A}")
-        print(f"   -> Visual: {filename_B}")
+        print(f"Saved Pair {pair_id} (Rx moved to y={rx_loc[1]:.2f})")
     
 
 
