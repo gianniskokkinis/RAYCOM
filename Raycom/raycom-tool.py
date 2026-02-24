@@ -1,21 +1,34 @@
 import os
 
-# update  LLVM 15 
-llvm_path = '/usr/lib/llvm-15/lib'
-llvm_lib = os.path.join(llvm_path, 'libLLVM-15.so') 
-os.environ['LD_LIBRARY_PATH'] = llvm_path + ':' + os.environ.get('LD_LIBRARY_PATH', '')
-os.environ['DRJIT_LIBLLVM_PATH'] = llvm_lib
+# -----------------------------------------------------------------------------
+# Mitsuba/DrJIT (Sionna RT) runtime setup
+# -----------------------------------------------------------------------------
+# Sionna RT selects the Mitsuba variant in `sionna.rt.__init__`:
+# - GPU available  -> 'cuda_ad_rgb'
+# - CPU only       -> 'llvm_ad_rgb'  (requires LLVM runtime)
+# On Windows, DrJIT needs to locate `LLVM-C.dll`. If LLVM is installed system-wide
+# (common default path), we set DRJIT_LIBLLVM_PATH automatically so imports work.
+if os.name == "nt" and "DRJIT_LIBLLVM_PATH" not in os.environ:
+    _llvm_candidates = [
+        r"C:\Program Files\LLVM\bin",
+        r"C:\Program Files (x86)\LLVM\bin",
+    ]
+    for _d in _llvm_candidates:
+        _dll = os.path.join(_d, "LLVM-C.dll")
+        if os.path.exists(_dll):
+            # DrJIT expects a path that helps it locate LLVM. On Windows, pointing
+            # directly to `LLVM-C.dll` is the most reliable option.
+            os.environ["DRJIT_LIBLLVM_PATH"] = _dll
+            break
 
-os.environ['MI_DEFAULT_VARIANT'] = 'llvm_ad_rgb'
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
+# Keep this for safety; Sionna will still call `mi.set_variant(...)` internally.
+os.environ.setdefault("MI_DEFAULT_VARIANT", "llvm_ad_rgb")
+
+# Linux-only Qt hint (harmless elsewhere, but avoid setting it on Windows)
+if os.name != "nt":
+    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 import argparse
-
-
-
-# Sionna
-import os
-
 
 
 
@@ -54,6 +67,7 @@ import matplotlib as mat
 from PyQt5.QtWidgets import QScrollArea, QLabel, QVBoxLayout, QWidget
 import time 
 import json
+from PIL import Image
 
     
 
@@ -742,10 +756,11 @@ class SionnaEnv:
         else:
             direction = np.array([1.0, 0.0, 0.0])
 
-        # !!! ΤΟ ΚΟΛΠΟ ΓΙΑ ΝΑ ΜΗ ΒΓΑΙΝΕΙ ΜΑΥΡΟ !!!
-        # Μετακινούμε την κάμερα 40 πόντους (0.4) προς το Laptop
-        # ώστε να βγει έξω από το 3D μοντέλο του Router.
-        camera_pos = rx_loc + (direction * 0.4)
+        # Πιο ασφαλής θέση κάμερας:
+        # 1. Πιο μακριά από τον router (π.χ. 1.0 m)
+        # 2. Λίγο πιο ψηλά (π.χ. +0.3 στο z) ώστε να είμαστε σίγουρα εκτός mesh
+        camera_pos = rx_loc + (direction * 1.0)
+        camera_pos[2] += 0.3
 
         # Ρυθμίζουμε την κάμερα
         cam_name = "dataset_cam"
@@ -762,8 +777,26 @@ class SionnaEnv:
         self.scene.render_to_file(
             camera=cam_name, 
             filename=filename_B, 
-            resolution=(256, 256) # Μικρή ανάλυση για γρήγορο dataset
+            resolution=(256, 256),           # Μικρή ανάλυση για γρήγορο dataset
+            paths=self.paths,                # χρήση των ίδιων paths με το preview
+            show_paths=False,
+            fov=60,
+            show_devices=False,
+            coverage_map=None,
+            num_samples=256                  # λιγότερα samples για ταχύτητα
         )
+
+        # DEBUG: Έλεγχος αν η τελική εικόνα είναι πραγματικά μαύρη ή απλά σκοτεινή
+        try:
+            img = Image.open(filename_B).convert("RGB")
+            arr = np.array(img)
+            max_val = arr.max()
+            mean_val = arr.mean()
+            print(f"[DEBUG] B image stats for pair {pair_id}: max={max_val}, mean={mean_val}")
+            if max_val == 0:
+                print(f"[DEBUG] Pair {pair_id}: image is completely black")
+        except Exception as e:
+            print(f"[DEBUG] Could not analyze B image for pair {pair_id}: {e}")
         
         # Καθαρισμός
         self.scene.remove(cam_name)
