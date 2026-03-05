@@ -1,32 +1,14 @@
-# Python virtual environments
-venv/
-.venv/
-env/
-.env/
+# Ignore everything
+*
 
-# Python bytecode / caches
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Keep the directory structure
+!Raycom/
 
-# Jupyter / IPython
-.ipynb_checkpoints/
+# Ignore everything inside Raycom except the 3 target files
+Raycom/*
+!Raycom/raycom-tool.py
+!Raycom/train_pix2pix.py
+!Raycom/test_pix2pix.py
 
-# Generated datasets / renders
-Raycom/dataset*/
-dataset*/
-
-# OS / editor
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-
-# Build / distribution
-build/
-dist/
-*.egg-info/
-
+# Ensure .gitignore itself is tracked
+!.gitignore

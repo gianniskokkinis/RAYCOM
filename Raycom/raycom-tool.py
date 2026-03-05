@@ -727,7 +727,7 @@ class SionnaEnv:
 
     def save_dataset_pair(self, pair_id, folder="dataset"):
 
-        # --- 1. ΔΗΜΙΟΥΡΓΙΑ ΦΑΚΕΛΩΝ ---
+        # --- CREATE FOLDERS ---
         path_A = os.path.join(folder, "A") # RF Heatmaps
         path_B = os.path.join(folder, "B") # Optical Images
 
@@ -735,19 +735,19 @@ class SionnaEnv:
         if not os.path.exists(path_B): os.makedirs(path_B)
 
         # --- 2. RF HEATMAP (INPUT) ---
-        # Παράγουμε το Heatmap από το σήμα που έλαβε ο Receiver
+        # We generate the Heatmap from the signal received by the Receiver.
         mag_map, phase_map = self.generate_heatmap()
         
         # Το αποθηκεύουμε ως εικόνα
         plt.imsave(os.path.join(path_A, f"{pair_id}_A.png"), mag_map, cmap='viridis')
 
-        # --- 3. OPTICAL IMAGE (TARGET) ---
+        # --- OPTICAL IMAGE (TARGET) ---
         
-        # Παίρνουμε τις συντεταγμένες
+        # We take the coordinates
         rx_loc = self.rx.position.numpy().flatten() # Πού είναι το Router
         tx_loc = self.tx.position.numpy().flatten() # Πού είναι το Laptop
 
-        # Υπολογίζουμε την κατεύθυνση από το Router προς το Laptop
+        # We calculate the direction from the router to the laptop.
         direction = tx_loc - rx_loc
         distance = np.linalg.norm(direction)
         
@@ -786,7 +786,7 @@ class SionnaEnv:
             num_samples=256                  # λιγότερα samples για ταχύτητα
         )
 
-        # DEBUG: Έλεγχος αν η τελική εικόνα είναι πραγματικά μαύρη ή απλά σκοτεινή
+        # DEBUG: Check if the final image is truly black or just dark
         try:
             img = Image.open(filename_B).convert("RGB")
             arr = np.array(img)
@@ -798,7 +798,7 @@ class SionnaEnv:
         except Exception as e:
             print(f"[DEBUG] Could not analyze B image for pair {pair_id}: {e}")
         
-        # Καθαρισμός
+        # Clear
         self.scene.remove(cam_name)
 
         print(f"Saved Pair {pair_id} (Rx moved to y={rx_loc[1]:.2f})")
@@ -1567,6 +1567,7 @@ def generate_dataset_example1():
     env.store_simulation_info()
 
     # 3. LOOP DATASET
+<<<<<<< Updated upstream
     # We are moving the receiver to y axis
     # we are gonna get 20 samples
     y_positions = np.linspace(-3.0, 3.0, 20) 
@@ -1576,37 +1577,136 @@ def generate_dataset_example1():
         
         tx_pos = [1.5, -2, 1.5] 
         rx_pos = [4.5, y_pos, 1.5]
+=======
+    y_positions = np.linspace(0.5, 3.5, 30) 
+    
+    for i, y_pos in enumerate(y_positions):
+        tx_pos = [1.5, 2.0, 1.5] 
+        rx_pos = [4.5, float(y_pos), 1.5]
+>>>>>>> Stashed changes
         
-        # Clear previous links
         if "Router" in env.scene.receivers:
             env.scene.remove("Router")
         if "Laptop" in env.scene.transmitters:
             env.scene.remove("Laptop")
             
-        # Create Link at new position
-        # Add orientation so that the receiver faces inward (towards the transmitter)
-        # [0, 0, 3.14] means a 180-degree turn (facing backward on the X axis)
         env.create_communication_link("Laptop", tx_pos, "Router", rx_pos, rx_orientation=[0,0,3.14])
         
-        
         try:
-            # try to calculate channel
             env.calculate_channel_state()
-            
-            # Αν πετύχει, σώζουμε το ζευγάρι
             env.save_dataset_pair(pair_id=i, folder="dataset_ex1")
-            
         except SystemExit:
-            # Αν το Sionna δεν βρει σήμα και κάνει raise SystemExit, το πιάνουμε εδώ
-            print(f"--> SKIPPING Point {i} (y={y_pos:.2f}): No signal found (Blind Spot).")
-            continue # Συνεχίζουμε στο επόμενο
+            print(f"--> SKIPPING Point {i} (y={y_pos:.2f}): No signal found.")
+            continue
         except Exception as e:
-            # Για οποιοδήποτε άλλο λάθος
             print(f"--> ERROR at Point {i}: {e}")
             continue
 
-    print("--- DATASET GENERATION COMPLETED ---")
-     
+    print("--- DATASET GENERATION COMPLETED FOR EXAMPLE 1 ---")
+
+def generate_dataset_example2():
+    print("--- STARTING DATASET GENERATION FOR EXAMPLE 2 ---")
+    
+    filepath = "./scenes/ex2/Futuristic_Apartment.xml"
+    scene = load_scene(filepath)
+    frequency = 2.437e9
+    bandwith = 20e6
+    fft_size = 64
+    
+    env = SionnaEnv(scene, frequency, bandwith, fft_size, False, 6, 4, False, VERBOSE=False)
+    
+    materialsToCheck = {
+        "mirror": {"material_name": "mirror", "material_relative_permittivity": 1.0, "material_conductivity": 3.8e7, "material_scattering_coefficient": 0.0, "material_xpd_coefficient": 0.0, "material_scattering_pattern": None, "material_frequency_update_callback": None}
+    }
+
+    obj_file_path = "./obj/ex2/Mirror.obj"
+    sionObj = sionnaObject("Mirror", obj_file_path, [-1, -7.6, 3])
+    sionObj.create_custom_material(materialsToCheck["mirror"]["material_name"], materialsToCheck["mirror"]["material_relative_permittivity"], materialsToCheck["mirror"]["material_conductivity"], materialsToCheck["mirror"]["material_scattering_coefficient"], materialsToCheck["mirror"]["material_xpd_coefficient"], materialsToCheck["mirror"]["material_scattering_pattern"], materialsToCheck["mirror"]["material_frequency_update_callback"], setColor=[0.0, 0.0, 1.0])
+    
+    env.load_obj_from_file([sionObj], filepath)
+    env.store_simulation_info()
+
+    # Move Router along Y axis in the apartment
+    y_positions = np.linspace(-8.0, -2.0, 30)
+    
+    for i, y_pos in enumerate(y_positions):
+        tx_pos = [6.0, 4.0, 3.0]
+        rx_pos = [5.0, float(y_pos), 3.0]
+        
+        if "Router" in env.scene.receivers:
+            env.scene.remove("Router")
+        if "Laptop" in env.scene.transmitters:
+            env.scene.remove("Laptop")
+            
+        # Router faces towards the transmitter area
+        env.create_communication_link("Laptop", tx_pos, "Router", rx_pos, rx_orientation=[0, 0, 1.57])
+        
+        try:
+            env.calculate_channel_state()
+            env.save_dataset_pair(pair_id=i, folder="dataset_ex2")
+        except SystemExit:
+            print(f"--> SKIPPING Point {i}: No signal found.")
+            continue
+        except Exception as e:
+            print(f"--> ERROR at Point {i}: {e}")
+            continue
+
+    print("--- DATASET GENERATION COMPLETED FOR EXAMPLE 2 ---")
+
+def generate_dataset_example3():
+    print("--- STARTING DATASET GENERATION FOR EXAMPLE 3 ---")
+    
+    filepath = "./scenes/ex3/Ioannina.xml"
+    scene = load_scene(filepath)
+    frequency = 2.437e9
+    bandwith = 20e6
+    fft_size = 64
+    
+    env = SionnaEnv(scene, frequency, bandwith, fft_size, False, 6, 4, False, VERBOSE=False)
+    
+    obj_file_path = "./obj/ex3/Antenna.obj"
+    sionObj = sionnaObject("Antenna", obj_file_path, [0, 0, 0])
+    sionObj.set_sionna_material("itu_metal")
+    
+    env.load_obj_from_file([sionObj], filepath)
+    env.store_simulation_info()
+
+    smartphonePositions = {
+        "pos1": np.array([-8, -31.5, 3.6]),
+        "pos2": np.array([-52.1, -237.1, 3.6]),
+        "pos3": np.array([-141.3, -115.1, 5.5])
+    }
+
+    # Interpolate path
+    path1 = np.linspace(smartphonePositions["pos1"], smartphonePositions["pos2"], 15)
+    path2 = np.linspace(smartphonePositions["pos2"], smartphonePositions["pos3"], 15)
+    all_positions = np.concatenate([path1, path2], axis=0)
+    
+    for i, pos in enumerate(all_positions):
+        tx_pos = [0.0, 10.0, 50.0] # TelTower
+        rx_pos = pos.tolist()
+        
+        if "TelTower" in env.scene.transmitters:
+            env.scene.remove("TelTower")
+        if "Smartphone" in env.scene.receivers:
+            env.scene.remove("Smartphone")
+            
+        # RX (Smartphone) looks towards the tower
+        direction = np.array(tx_pos) - np.array(rx_pos)
+        angle = np.arctan2(direction[1], direction[0])
+        env.create_communication_link("TelTower", tx_pos, "Smartphone", rx_pos, rx_orientation=[0, 0, float(angle)])
+        
+        try:
+            env.calculate_channel_state()
+            env.save_dataset_pair(pair_id=i, folder="dataset_ex3")
+        except SystemExit:
+            print(f"--> SKIPPING Point {i}: No signal found.")
+            continue
+        except Exception as e:
+            print(f"--> ERROR at Point {i}: {e}")
+            continue
+
+    print("--- DATASET GENERATION COMPLETED FOR EXAMPLE 3 ---")
 
     
 #Main
@@ -1617,22 +1717,25 @@ if __name__ == '__main__':
     parser.add_argument("--render", action="store_true", default=False, help="Render task")
     parser.add_argument("--example1", action="store_true", default=False, help="Run example1")
     parser.add_argument("--example2", action="store_true", default=False, help="Run example2")
-    parser.add_argument("--example3_1", action="store_true", default=False, help="Run example3")
-    parser.add_argument("--example3_2", action="store_true", default=False, help="Run example3")
-    parser.add_argument("--example3_3", action="store_true", default=False, help="Run example3")
-    parser.add_argument("--gen_dataset", action="store_true", default=False, help="Generate Dataset from Example 1")
+    parser.add_argument("--example3_1", action="store_true", default=False, help="Run example3_1")
+    parser.add_argument("--example3_2", action="store_true", default=False, help="Run example3_2")
+    parser.add_argument("--example3_3", action="store_true", default=False, help="Run example3_3")
+    parser.add_argument("--gen_dataset", type=int, default=0, help="Generate Dataset from Example (1, 2, or 3)")
     
     args = parser.parse_args()
 
-    """
-    Training
-    """
-    if args.gen_dataset:
+    if args.gen_dataset == 1:
+        print("--- STARTING DATASET GENERATION FOR EXAMPLE 1 ---")
         generate_dataset_example1()
         exit()
-    """
-    End training
-    """
+    elif args.gen_dataset == 2:
+        print("--- STARTING DATASET GENERATION FOR EXAMPLE 2 ---")
+        generate_dataset_example2()
+        exit()
+    elif args.gen_dataset == 3:
+        print("--- STARTING DATASET GENERATION FOR EXAMPLE 3 ---")
+        generate_dataset_example3()
+        exit()
     
     isRunExample1 = args.example1
     isRunExample2 = args.example2
@@ -1649,17 +1752,15 @@ if __name__ == '__main__':
         example2(isRender)
         exit()
     elif (isRunExample3_1):
-        example3(isRender,1)
+        example3(isRender, 1)
         exit()
     elif (isRunExample3_2):
-        example3(isRender,2)
+        example3(isRender, 2)
         exit()
     elif (isRunExample3_3):
-        example3(isRender,3)
+        example3(isRender, 3)
         exit()
         
-    
-    
     print("Config: ", args.config)
     filepath = args.config
     
@@ -1671,15 +1772,11 @@ if __name__ == '__main__':
     example_config = json.load(f)
 
     filepath = example_config["scene_file"]
-
     scene = load_scene(filepath)
-
     frequency = example_config["frequency"]
     bandwith = example_config["bandwith"]
     fft_size = example_config["fft_size"]
     
-
-    #setup enviroment and start simulation
     rt_calc_diffraction = example_config["rt_calc_diffraction"]
     rt_max_depth = example_config["rt_max_depth"]
     rt_max_parallel_links = example_config["rt_max_parallel_links"]
@@ -1688,23 +1785,12 @@ if __name__ == '__main__':
 
     env = SionnaEnv(scene, frequency, bandwith, fft_size,  rt_calc_diffraction, rt_max_depth, rt_max_parallel_links, est_csi, VERBOSE=verbose)
 
-
     sionnObjects = [] 
-   
-
     if ("objects" in list(example_config.keys())):
-
         for sionObj in list(example_config["objects"].keys()):
-            
             obj_file_path = example_config["objects"][sionObj]["obj_file_path"]
-
-            put_sionObj = sionnaObject(example_config["objects"][sionObj]["name"],
-                                    obj_file_path, 
-                                    example_config["objects"][sionObj]["position"]
-                                    )
-            #print(list(example_config["objects"][sionObj].keys()))
+            put_sionObj = sionnaObject(example_config["objects"][sionObj]["name"], obj_file_path, example_config["objects"][sionObj]["position"])
             if ("custom_material" in list(example_config["objects"][sionObj].keys())):
-                
                 update_material_scattering_pattern = None
                 if (example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"] != "None"):
                     update_material_scattering_pattern = example_config["objects"][sionObj]["custom_material"]["material_scattering_pattern"]
@@ -1727,29 +1813,13 @@ if __name__ == '__main__':
             else:
                 print("No material has been declared in your new items")
                 exit()
-
             sionnObjects.append(put_sionObj)
-
-        
         env.load_obj_from_file(sionnObjects, filepath)
-    
-       
-        
-
-        
-    
-    
-
-        
-
 
     env.store_simulation_info()
     env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
     env.calculate_channel_state()
     env.simulate_digital_communication(example_config["batch_size"],example_config["iter"])
-
-        
-
     env.display_stats()
     
     if (isRender):
@@ -1764,7 +1834,6 @@ if __name__ == '__main__':
         except Exception as e:
             print(e)
 
-    
 
 
     
