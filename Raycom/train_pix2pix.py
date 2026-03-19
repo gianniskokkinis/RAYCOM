@@ -35,6 +35,7 @@ class PairedImageDataset(Dataset):
             raise RuntimeError(f"No A/B pairs found under {root}")
 
         # Conversions: [0,1] -> [-1,1] for pix2pix-style training
+        # this need for 256x256 pixels
         self.transform = transforms.Compose(
             [
                 transforms.Resize((image_size, image_size)),
