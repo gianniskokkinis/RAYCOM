@@ -1083,8 +1083,8 @@ class SionnaEnv:
             camera = set_camera,
             filename=updateFIlename,
             resolution=updateResolution,
-            paths = self.paths,
-            show_paths = True,
+            # paths = self.paths,
+            # show_paths = True,
             fov=60,
             show_devices=True,
             coverage_map = None,
@@ -1567,7 +1567,6 @@ def generate_dataset_example1():
     env.store_simulation_info()
 
     # 3. LOOP DATASET
-<<<<<<< Updated upstream
     # We are moving the receiver to y axis
     # we are gonna get 20 samples
     y_positions = np.linspace(-3.0, 3.0, 20) 
@@ -1577,13 +1576,6 @@ def generate_dataset_example1():
         
         tx_pos = [1.5, -2, 1.5] 
         rx_pos = [4.5, y_pos, 1.5]
-=======
-    y_positions = np.linspace(0.5, 3.5, 30) 
-    
-    for i, y_pos in enumerate(y_positions):
-        tx_pos = [1.5, 2.0, 1.5] 
-        rx_pos = [4.5, float(y_pos), 1.5]
->>>>>>> Stashed changes
         
         if "Router" in env.scene.receivers:
             env.scene.remove("Router")
@@ -1721,7 +1713,7 @@ if __name__ == '__main__':
     parser.add_argument("--example3_2", action="store_true", default=False, help="Run example3_2")
     parser.add_argument("--example3_3", action="store_true", default=False, help="Run example3_3")
     parser.add_argument("--gen_dataset", type=int, default=0, help="Generate Dataset from Example (1, 2, or 3)")
-    
+    parser.add_argument("--gen_dataset_config", action="store_true", default=False, help="Generate Dataset from JSON config")
     args = parser.parse_args()
 
     if args.gen_dataset == 1:
@@ -1817,22 +1809,65 @@ if __name__ == '__main__':
         env.load_obj_from_file(sionnObjects, filepath)
 
     env.store_simulation_info()
-    env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
-    env.calculate_channel_state()
-    env.simulate_digital_communication(example_config["batch_size"],example_config["iter"])
-    env.display_stats()
-    
-    if (isRender):
-        try:
-            resolution = example_config["resolution"]
-            cameraPos = example_config["camera_positions"]
-            lookAt = example_config["look_at"]
-            simulation_name = example_config["simulation_name"]
-            render_file_output = example_config["render_output"]
-            env.preview_the_scene(resolution, cameraPos, lookAt, render_file_output)
-            print("RENDER DONE")
-        except Exception as e:
-            print(e)
+
+    # Ελέγχουμε αν το JSON ζητάει δημιουργία Dataset
+    is_gen_dataset = example_config.get("generate_dataset", False)
+
+    if is_gen_dataset:
+        print(f"--- STARTING DATASET GENERATION FROM JSON CONFIG ---")
+        dataset_folder = example_config.get("dataset_folder", "dataset_custom")
+        num_samples = example_config.get("dataset_samples", 30)
+        y_range = example_config.get("dataset_rx_y_range", [0.5, 3.5])
+        
+        tx_pos = example_config["tx_position"]
+        rx_base_pos = example_config["rx_position"] # Παίρνουμε το βασικό X και Z (συνήθως X=4.5, Z=1.5)
+        
+        y_positions = np.linspace(y_range[0], y_range[1], num_samples) 
+        
+        for i, y_pos in enumerate(y_positions):
+            # Δημιουργία νέας θέσης RX με βάση το Y που αλλάζει
+            current_rx_pos = [rx_base_pos[0], float(y_pos), rx_base_pos[2]]
+            
+            # Καθαρισμός προηγούμενων πομπών/δεκτών
+            if example_config["rx_name"] in env.scene.receivers:
+                env.scene.remove(example_config["rx_name"])
+            if example_config["tx_name"] in env.scene.transmitters:
+                env.scene.remove(example_config["tx_name"])
+                
+            # Δημιουργία Link - Ο δέκτης κοιτάει πίσω προς τον πομπό (orientation 3.14)
+            env.create_communication_link(example_config["tx_name"], tx_pos, example_config["rx_name"], current_rx_pos, rx_orientation=[0,0,3.14])
+            
+            try:
+                env.calculate_channel_state()
+                env.save_dataset_pair(pair_id=i, folder=dataset_folder)
+            except SystemExit:
+                print(f"--> SKIPPING Point {i} (y={y_pos:.2f}): No signal found.")
+                continue
+            except Exception as e:
+                print(f"--> ERROR at Point {i}: {e}")
+                continue
+
+        print(f"--- DATASET GENERATION COMPLETED (Saved in {dataset_folder}) ---")
+        exit()
+
+
+    else: 
+        env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
+        # env.calculate_channel_state()
+        # env.simulate_digital_communication(example_config["batch_size"],example_config["iter"])
+        # env.display_stats()
+        
+        if (isRender):
+            try:
+                resolution = example_config["resolution"]
+                cameraPos = example_config["camera_positions"]
+                lookAt = example_config["look_at"]
+                simulation_name = example_config["simulation_name"]
+                render_file_output = example_config["render_output"]
+                env.preview_the_scene(resolution, cameraPos, lookAt, render_file_output)
+                print("RENDER DONE")
+            except Exception as e:
+                print(e)
 
 
 
