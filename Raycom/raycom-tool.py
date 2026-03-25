@@ -1811,30 +1811,27 @@ if __name__ == '__main__':
     env.store_simulation_info()
 
     # Ελέγχουμε αν το JSON ζητάει δημιουργία Dataset
-    is_gen_dataset = example_config.get("generate_dataset", False)
 
-    if is_gen_dataset:
+
+    if args.gen_dataset_config:
         print(f"--- STARTING DATASET GENERATION FROM JSON CONFIG ---")
         dataset_folder = example_config.get("dataset_folder", "dataset_custom")
         num_samples = example_config.get("dataset_samples", 30)
         y_range = example_config.get("dataset_rx_y_range", [0.5, 3.5])
         
         tx_pos = example_config["tx_position"]
-        rx_base_pos = example_config["rx_position"] # Παίρνουμε το βασικό X και Z (συνήθως X=4.5, Z=1.5)
+        rx_base_pos = example_config["rx_position"]
         
         y_positions = np.linspace(y_range[0], y_range[1], num_samples) 
         
         for i, y_pos in enumerate(y_positions):
-            # Δημιουργία νέας θέσης RX με βάση το Y που αλλάζει
             current_rx_pos = [rx_base_pos[0], float(y_pos), rx_base_pos[2]]
             
-            # Καθαρισμός προηγούμενων πομπών/δεκτών
             if example_config["rx_name"] in env.scene.receivers:
                 env.scene.remove(example_config["rx_name"])
             if example_config["tx_name"] in env.scene.transmitters:
                 env.scene.remove(example_config["tx_name"])
                 
-            # Δημιουργία Link - Ο δέκτης κοιτάει πίσω προς τον πομπό (orientation 3.14)
             env.create_communication_link(example_config["tx_name"], tx_pos, example_config["rx_name"], current_rx_pos, rx_orientation=[0,0,3.14])
             
             try:
@@ -1853,9 +1850,9 @@ if __name__ == '__main__':
 
     else: 
         env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
-        # env.calculate_channel_state()
-        # env.simulate_digital_communication(example_config["batch_size"],example_config["iter"])
-        # env.display_stats()
+        env.calculate_channel_state()
+        env.simulate_digital_communication(example_config["batch_size"],example_config["iter"])
+        env.display_stats()
         
         if (isRender):
             try:
