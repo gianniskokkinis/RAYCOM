@@ -190,10 +190,8 @@ class SionnaEnv:
     
     # Πρόσθεσα το rx_orientation=[0,0,0] στα ορίσματα (με default τιμή για να μην σπάει ο κώδικας αν δεν το δώσεις)
     def create_communication_link(self, tx_name, tx_position, rx_name , rx_position, rx_orientation=[0,0,0]):
-        #This method is about creating link between transmitter and receiver 
+        # This method is about creating link between transmitter and receiver 
         self.tx = Transmitter(name=tx_name, position=tx_position)
-        
-        # Τώρα το rx_orientation υπάρχει και μπορεί να χρησιμοποιηθεί εδώ
         self.rx = Receiver(name=rx_name, position=rx_position, orientation=rx_orientation)
 
         self.scene.add(self.tx)
@@ -756,15 +754,14 @@ class SionnaEnv:
         else:
             direction = np.array([1.0, 0.0, 0.0])
 
-        # Πιο ασφαλής θέση κάμερας:
-        # 1. Πιο μακριά από τον router (π.χ. 1.0 m)
-        # 2. Λίγο πιο ψηλά (π.χ. +0.3 στο z) ώστε να είμαστε σίγουρα εκτός mesh
-        camera_pos = rx_loc + (direction * 1.0)
-        camera_pos[2] += 0.3
+        # ΝΕΑ ΠΙΟ ΣΩΣΤΗ ΘΕΣΗ ΚΑΜΕΡΑΣ:
+        # Την πάμε ελαφρώς πιο ΠΙΣΩ από τον δέκτη (αρνητικό direction) κατά 0.5m
+        # και λίγο πιο ψηλά (+0.5) για να βλέπουμε όλο το δωμάτιο σαν "κάμερα ασφαλείας".
+        camera_pos = rx_loc - (direction * 0.5)
+        camera_pos[2] += 0.5
 
         # Ρυθμίζουμε την κάμερα
         cam_name = "dataset_cam"
-        # Αν υπάρχει ήδη παλιά κάμερα, την σβήνουμε
         if cam_name in self.scene.cameras:
             self.scene.remove(cam_name)
             
@@ -777,13 +774,13 @@ class SionnaEnv:
         self.scene.render_to_file(
             camera=cam_name, 
             filename=filename_B, 
-            resolution=(256, 256),           # Μικρή ανάλυση για γρήγορο dataset
-            paths=self.paths,                # χρήση των ίδιων paths με το preview
+            resolution=(256, 256),
+            paths=self.paths,
             show_paths=False,
-            fov=60,
+            fov=90,  # <-- ΑΛΛΑΓΗ ΣΕ 90: Ευρυγώνιος φακός για να φαίνεται όλο το δωμάτιο!
             show_devices=False,
             coverage_map=None,
-            num_samples=256                  # λιγότερα samples για ταχύτητα
+            num_samples=256
         )
 
         # DEBUG: Check if the final image is truly black or just dark
@@ -1064,34 +1061,46 @@ class SionnaEnv:
         
 
 
-    def preview_the_scene(self, updateResolution, updateCameraPosition, updateLookAt,updateFIlename):
+    def preview_the_scene(self, updateResolution, updateCameraPosition, updateLookAt, updateFIlename):
+        # 1. Στήσιμο της Κάμερας
         cameraPos = [updateCameraPosition[0], updateCameraPosition[1], updateCameraPosition[2]]
         lookAt = [updateLookAt[0], updateLookAt[1], updateLookAt[2]]
-        set_camera = Camera(name="MainCamera", position=cameraPos)
+        
+        cam_name = "MainCamera"
+        if cam_name in self.scene.cameras:
+            self.scene.remove(cam_name)
+            
+        set_camera = Camera(name=cam_name, position=cameraPos)
         set_camera.look_at(lookAt)
         self.scene.add(set_camera)
 
+        print("📸 Υπολογισμός 'ελαφριών' ακτινών (LoS + 1 ανάκλαση) για καθαρό rendering...")
         
+        # 2. Υπολογίζουμε ΕΙΔΙΚΑ ΓΙΑ ΤΗ ΦΩΤΟΓΡΑΦΙΑ ένα καθαρό σετ ακτινών
+        # Το max_depth=1 διώχνει το "άσπρο σύννεφο" και αφήνει μόνο τις βασικές ακτίνες!
+        preview_paths = self.scene.compute_paths(
+            max_depth=1,          
+            method="fibonacci",
+            num_samples=5000,
+            los=True,
+            reflection=True,
+            diffraction=False,
+            scattering=False
+        )
 
-        #test
-        print("self.scene._scene.shapes() : ")
-        print(self.scene._scene.shapes())
-        #end test
-
-
+        # 3. Αυτόματο Render της Εικόνας
         self.scene.render_to_file(
             camera = set_camera,
             filename=updateFIlename,
             resolution=updateResolution,
-            # paths = self.paths,
-            # show_paths = True,
-            fov=60,
-            show_devices=True,
+            paths = preview_paths,
+            show_paths = True,
+            show_devices = True,     # <--- ΚΡΥΒΟΥΜΕ ΤΟΥΣ ΤΕΡΑΣΤΙΟΥΣ ΚΥΚΛΟΥΣ
             coverage_map = None,
             num_samples=1024
         )
-
-
+        
+        self.scene.remove(cam_name)
 
         
 
@@ -1851,8 +1860,8 @@ if __name__ == '__main__':
     else: 
         env.create_communication_link(example_config["tx_name"], example_config["tx_position"], example_config["rx_name"], example_config["rx_position"])
         env.calculate_channel_state()
-        env.simulate_digital_communication(example_config["batch_size"],example_config["iter"])
-        env.display_stats()
+        # env.simulate_digital_communication(example_config["batch_size"],example_config["iter"])
+        # env.display_stats()
         
         if (isRender):
             try:
